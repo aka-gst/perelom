@@ -41,6 +41,21 @@ export const anchorsOf = (piece) => ({
 export const PIECE_BY_ID = Object.fromEntries(PIECES.map((p) => [p.id, p]));
 
 /**
+ * Откуда брать файл графики.
+ *
+ * Обычно — с сервера рядом с игрой. Но игра умеет собираться в один файл,
+ * и тогда картинки лежат прямо в нём: сборщик кладёт их сюда, и ни одного
+ * запроса наружу не остаётся.
+ */
+export function assetUrl(name, base) {
+    const bundled = globalThis.__PERELOM_ASSETS;
+    // В однофайловой сборке чего нет — того нет: ходить за ним некуда,
+    // и незачем сорить в консоль ошибками про ненарисованное.
+    if (bundled) return bundled[name] ?? null;
+    return `${base}/${name}`;
+}
+
+/**
  * Подгонка под фактический рисунок.
  *
  * Первая поставка пришла нарисованной во всю ширину холста: поля в 16 px и
@@ -147,6 +162,11 @@ export function loadFighterArt(fighterId, base = './assets/art') {
     const set = { id: fighterId, ready: false, images: {}, dark: {}, fit: {} };
     let left = IDS.length;
     for (const id of IDS) {
+        const url = assetUrl(`part-${fighterId}-${id}.png`, base);
+        if (!url) {
+            left -= 1;
+            continue;
+        }
         const img = new Image();
         img.onload = () => {
             set.images[id] = img;
@@ -161,7 +181,7 @@ export function loadFighterArt(fighterId, base = './assets/art') {
             left -= 1;
             if (left === 0) set.ready = Object.keys(set.images).length === IDS.length;
         };
-        img.src = `${base}/part-${fighterId}-${id}.png`;
+        img.src = url;
     }
     return set;
 }
@@ -186,6 +206,11 @@ export function loadArenaArt(arenaId, base = './assets/art') {
     const set = { id: arenaId, ready: false, images: {}, order: ARENA_LAYERS };
     let left = ARENA_LAYERS.length;
     for (const layer of ARENA_LAYERS) {
+        const url = assetUrl(`bg-${arenaId}-${layer}.webp`, base);
+        if (!url) {
+            left -= 1;
+            continue;
+        }
         const img = new Image();
         img.onload = () => {
             set.images[layer] = img;
@@ -196,7 +221,7 @@ export function loadArenaArt(arenaId, base = './assets/art') {
             left -= 1;
             if (left === 0) set.ready = false;
         };
-        img.src = `${base}/bg-${arenaId}-${layer}.webp`;
+        img.src = url;
     }
     return set;
 }
