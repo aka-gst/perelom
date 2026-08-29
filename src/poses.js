@@ -42,9 +42,9 @@ export const POSES = {
         kneeF: [41, 6], footF: [22, -30], kneeB: [-10, -40], footB: [-26, -78],
     },
     hitFoot: {
-        pelvis: [-4, -4], chest: [-8, 26], neck: [-10, 48], head: [-8, 66],
-        elbowF: [8, 19], handF: [16, 50], elbowB: [-4, 14], handB: [-34, 26],
-        kneeF: [37, -17], footF: [72, 4], kneeB: [-5, -47], footB: [-32, -78],
+        pelvis: [10, -6], chest: [4, 23], neck: [1, 45], head: [2, 63],
+        elbowF: [21, 17], handF: [30, 48], elbowB: [8, 12], handB: [-22, 24],
+        kneeF: [53, -10], footF: [92, 2], kneeB: [5, -49], footB: [-24, -78],
     },
     windGrab: {
         pelvis: [-2, 0], chest: [-2, 30], neck: [-2, 52], head: [0, 70],
@@ -61,9 +61,19 @@ export const POSES = {
         elbowF: [4, 20], handF: [-6, 50], elbowB: [-11, 13], handB: [-40, 26],
         kneeF: [22, -37], footF: [22, -78], kneeB: [-12, -47], footB: [-38, -78],
     },
+    step: {
+        pelvis: [0, 4], chest: [1, 34], neck: [2, 56], head: [6, 73],
+        elbowF: [18, 26], handF: [22, 58], elbowB: [-12, 25], handB: [-4, 56],
+        kneeF: [35, -21], footF: [40, -62], kneeB: [-15, -36], footB: [-35, -72],
+    },
+    air: {
+        pelvis: [0, 0], chest: [0, 30], neck: [1, 52], head: [4, 70],
+        elbowF: [25, 28], handF: [26, 60], elbowB: [-23, 28], handB: [-8, 56],
+        kneeF: [40, -17], footF: [16, -50], kneeB: [6, -43], footB: [-34, -52],
+    },
     getup: {
         pelvis: [0, -34], chest: [4, -4], neck: [6, 18], head: [13, 34],
-        elbowF: [17, -15], handF: [34, 12], elbowB: [11, -16], handB: [-4, 12],
+        elbowF: [16, -15], handF: [34, 12], elbowB: [12, -16], handB: [-4, 12],
         kneeF: [40, -49], footF: [12, -78], kneeB: [26, -68], footB: [-14, -78],
     },
 };
@@ -80,40 +90,48 @@ export function lerpPose(a, b, k) {
 }
 
 /**
- * Раскадровка на действие. `contact` — доля времени, в которой удар
- * касается; до неё анимация тянется, после — отдёргивается.
+ * Раскадровка удара привязана к кадрам, а не к доле времени.
  *
- * Замах длиннее у медленных действий: по силуэту видно, что летит,
- * и у противника есть за что зацепиться, когда он решает перехватывать.
+ * Так анимация не может разойтись с правилами: разгон длится ровно столько
+ * кадров, сколько написано в `rules.js`, и противник видит замах ровно то
+ * время, за которое обязан успеть перехватить. Если поменять кадры в
+ * правилах, картинка поедет за ними сама.
  */
-export const ANIM = {
-    hand: { frames: [['idle', 0], ['windHand', 0.22], ['hitHand', 0.42], ['hitHand', 0.55], ['idle', 1]], contact: 0.42 },
-    foot: { frames: [['idle', 0], ['windFoot', 0.32], ['hitFoot', 0.55], ['hitFoot', 0.68], ['idle', 1]], contact: 0.55 },
-    grab: { frames: [['idle', 0], ['windGrab', 0.34], ['hitGrab', 0.58], ['hitGrab', 0.74], ['idle', 1]], contact: 0.58 },
-    catchHand: { frames: [['idle', 0], ['catch', 0.28], ['catch', 0.62], ['idle', 1]], contact: 0.4 },
-    catchFoot: { frames: [['idle', 0], ['catch', 0.28], ['catch', 0.62], ['idle', 1]], contact: 0.4 },
-    block: { frames: [['idle', 0], ['guard', 0.18], ['guard', 0.72], ['idle', 1]], contact: 0.4 },
-    hurt: { frames: [['idle', 0], ['hurt', 0.2], ['hurt', 0.5], ['idle', 1]], contact: 0.2 },
-    getup: { frames: [['getup', 0], ['getup', 0.5], ['idle', 1]], contact: 0 },
+export const ATTACK_POSES = {
+    hand: { wind: 'windHand', hit: 'hitHand' },
+    foot: { wind: 'windFoot', hit: 'hitFoot' },
+    grab: { wind: 'windGrab', hit: 'hitGrab' },
+    catchHand: { wind: 'guard', hit: 'catch' },
+    catchFoot: { wind: 'guard', hit: 'catch' },
 };
 
-/** Поза действия в момент `t` (0..1). */
-export function sampleAnim(actionId, t) {
-    const anim = ANIM[actionId] ?? ANIM.hand;
-    const frames = anim.frames;
-    const clamped = Math.min(1, Math.max(0, t));
-    for (let i = 0; i < frames.length - 1; i += 1) {
-        const [nameA, tA] = frames[i];
-        const [nameB, tB] = frames[i + 1];
-        if (clamped >= tA && clamped <= tB) {
-            const span = tB - tA || 1;
-            const k = (clamped - tA) / span;
-            // Сглаживание: линейная интерполяция читается как робот.
-            const eased = k * k * (3 - 2 * k);
-            return lerpPose(POSES[nameA], POSES[nameB], eased);
-        }
+const ease = (k) => k * k * (3 - 2 * k);
+
+/** Поза действия на кадре `frame`. `spec` — запись из ACTION. */
+export function poseForAttack(actionId, frame, spec) {
+    const keys = ATTACK_POSES[actionId];
+    if (!keys) return POSES.idle;
+    const { startup, active, recovery } = spec;
+    // Конечность обязана прийти в крайнюю точку ровно к первому активному
+    // кадру: дальность удара считается по кулаку и стопе, и если они ещё
+    // поджаты, удар становится опасным раньше, чем куда-то дотягивается.
+    const cock = Math.max(1, Math.round(startup * 0.55));
+    if (frame < cock) {
+        return lerpPose(POSES.idle, POSES[keys.wind], ease(frame / cock));
     }
-    return POSES[frames[frames.length - 1][0]];
+    if (frame < startup) {
+        const k = (frame - cock) / Math.max(1, startup - cock);
+        return lerpPose(POSES[keys.wind], POSES[keys.hit], ease(k));
+    }
+    if (frame < startup + active) return POSES[keys.hit];
+    const back = (frame - startup - active) / Math.max(1, recovery);
+    return lerpPose(POSES[keys.hit], POSES.idle, ease(Math.min(1, back)));
+}
+
+/** Поза ходьбы: цикл шага, `phase` от 0 до 1. */
+export function walkPose(phase) {
+    const k = (Math.sin(phase * Math.PI * 2) + 1) / 2;
+    return lerpPose(POSES.idle, POSES.step, k);
 }
 
 /** Где кулак или стопа в момент касания — туда летит кровь и оттуда импульс. */

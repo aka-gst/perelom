@@ -1,118 +1,163 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { PHASE, TIMING, choose, createFight, juggleStrike, optionsFor, tick } from '../src/fight.js';
+import { STATE, TUNE, createFight, optionsFor, other, stepFrame } from '../src/fight.js';
+import { ACTION, lengthOf } from '../src/rules.js';
 import { BROKEN } from '../src/body.js';
 
-const STEP = 1 / 60;
+const NEUTRAL = {
+    left: false, right: false, up: false, down: false,
+    hand: false, foot: false, grab: false, pull: false,
+    dashLeft: false, dashRight: false,
+};
 
-/** Прокрутить бой на `seconds` игрового времени. */
-function run(fight, seconds) {
-    for (let t = 0; t < seconds; t += STEP) tick(fight, STEP);
+const input = (over = {}) => ({ ...NEUTRAL, ...over });
+const still = () => input();
+
+/** Нажать один раз на первом кадре, дальше держать `hold`. */
+function once(press, hold = {}) {
+    let done = false;
+    return () => {
+        if (done) return input(hold);
+        done = true;
+        return input({ ...hold, ...press });
+    };
 }
 
-/** Довести бой до следующего чтения — через размен, джагл и подъём. */
-function toRead(fight, cap = 14) {
-    for (let t = 0; t < cap; t += STEP) {
-        tick(fight, STEP);
-        if (fight.phase === PHASE.read) return true;
-        if (fight.phase === PHASE.over) return false;
-    }
-    return false;
+function drive(fight, frames, a = still, b = still) {
+    for (let i = 0; i < frames; i += 1) stepFrame(fight, [a, b]);
 }
 
-/** Разыграть один размен с заданными выборами сторон. */
-function exchange(fight, mine, theirs) {
-    choose(fight, 0, mine);
-    choose(fight, 1, theirs);
-    tick(fight, STEP);
+/** Поставить бойцов на нужный зазор: дальность в игре берётся из поз. */
+function place(fight, gap) {
+    fight.fighters[0].x = fight.centerX - gap / 2;
+    fight.fighters[1].x = fight.centerX + gap / 2;
+    for (const f of fight.fighters) f.sk.facing = f.facing;
+    drive(fight, 1);
 }
 
-test('перехват — это лаунчер: угаданный тип открывает джагл', () => {
-    // Стык двух слоёв игры. Если перехват перестанет подбрасывать,
-    // чтение и исполнение разъедутся на две несвязанные игры.
+test('удар проходит и снимает здоровье', () => {
     const fight = createFight({ seed: 3 });
-    exchange(fight, 'catchHand', 'hand');
-    assert.equal(fight.phase, PHASE.juggle);
-    assert.equal(fight.juggler, 0);
-    assert.equal(fight.victim, 1);
-    assert.equal(fight.fighters[1].sk.mode, 'ragdoll');
+    place(fight, 80);
+    drive(fight, 20, once({ hand: true }));
+    assert.ok(fight.fighters[1].body.hp < 100, 'рука в упор обязана попасть');
+    assert.equal(fight.fighters[1].state, STATE.hurt);
 });
 
-test('пока тело в воздухе, слой чтения выключен', () => {
-    const fight = createFight({ seed: 3 });
-    exchange(fight, 'catchHand', 'hand');
-    assert.equal(choose(fight, 1, 'block'), false, 'летящий не должен успевать выбрать ответ');
-    assert.equal(juggleStrike(fight, 1, 'hand'), false, 'бить может только тот, кто подбросил');
+test('дальность берётся из позы: нога достаёт там, где рука уже нет', () => {
+    // Ради этого дальность нигде и не записана числом — она следствие
+    // анимации, и потому картинка не может соврать про досягаемость.
+    const near = createFight({ seed: 3 });
+    place(near, 108);
+    drive(near, 20, once({ hand: true }));
+    assert.equal(near.fighters[1].body.hp, 100, 'рука на такой дистанции не достаёт');
+
+    const far = createFight({ seed: 3 });
+    place(far, 108);
+    drive(far, 26, once({ foot: true }));
+    assert.ok(far.fighters[1].body.hp < 100, 'нога на той же дистанции обязана достать');
 });
 
-test('каждый следующий удар в джагле слабее предыдущего', () => {
-    // Иначе комбо не кончается никогда и превращается в одну кнопку.
+test('шаг назад — это блок: удар проходит только чипом', () => {
+    const fight = createFight({ seed: 3 });
+    place(fight, 80);
+    const guard = () => input({ right: true }); // от игрока прочь = блок
+    drive(fight, 20, once({ hand: true }), guard);
+    const foe = fight.fighters[1];
+    assert.ok(foe.body.hp > 100 - ACTION.hand.damage, 'блок обязан почти всё удержать');
+    assert.ok(foe.body.hp < 100, 'но чип проходит: вечно блокировать нельзя');
+    assert.ok(foe.body.guard < 3, 'и гард копит слом');
+});
+
+test('перехват своего типа подбрасывает бьющего', () => {
+    // Стык двух слоёв игры: выиграл чтение — получил право исполнять.
+    const fight = createFight({ seed: 3 });
+    place(fight, 80);
+    drive(fight, 14, once({ hand: true }), once({ hand: true, pull: true }));
+    assert.equal(fight.fighters[0].state, STATE.launched, 'перехваченный обязан улететь');
+    assert.equal(fight.fighters[0].sk.mode, 'ragdoll');
+});
+
+test('перехват не того типа наказывается встречным', () => {
+    const missed = createFight({ seed: 3 });
+    place(missed, 108);
+    drive(missed, 24, once({ foot: true }), once({ hand: true, pull: true }));
+
+    const plain = createFight({ seed: 3 });
+    place(plain, 108);
+    drive(plain, 24, once({ foot: true }));
+
+    assert.ok(missed.fighters[1].body.hp < plain.fighters[1].body.hp,
+        'жадный перехват мимо обязан стоить дороже обычного пропуска');
+});
+
+test('пока тело в воздухе, оно не защищается, и комбо затухает', () => {
     const fight = createFight({ seed: 5 });
-    exchange(fight, 'catchHand', 'hand');
-    run(fight, TIMING.juggleCooldown + STEP);
+    place(fight, 80);
+    drive(fight, 14, once({ hand: true }), once({ hand: true, pull: true }));
+    assert.equal(fight.fighters[0].state, STATE.launched);
 
-    const deltas = [];
-    for (let i = 0; i < 4; i += 1) {
-        const before = fight.fighters[1].body.hp;
-        assert.ok(juggleStrike(fight, 0, 'hand'), `удар ${i + 1} не прошёл`);
-        deltas.push(before - fight.fighters[1].body.hp);
-        run(fight, TIMING.juggleCooldown + STEP);
-    }
-    for (let i = 1; i < deltas.length; i += 1) {
-        assert.ok(deltas[i] < deltas[i - 1], `удар ${i + 1} оказался не слабее предыдущего`);
-    }
-    assert.equal(fight.juggleHits, 4);
-});
-
-test('бросок бьёт больно, но джагла не даёт', () => {
-    // Бросок — это размен без продолжения: он закрывает защиту,
-    // а не открывает исполнение. Иначе перехват потеряет смысл.
-    const fight = createFight({ seed: 9 });
-    exchange(fight, 'grab', 'block');
-    assert.equal(fight.phase, PHASE.down);
-    assert.ok(fight.fighters[1].body.hp < 100);
-    assert.equal(juggleStrike(fight, 0, 'hand'), false);
-});
-
-test('вечно блокировать нельзя: гард ломается и сам становится лаунчером', () => {
-    const fight = createFight({ seed: 11 });
-    let launched = false;
-    for (let round = 0; round < 4 && !launched; round += 1) {
-        exchange(fight, 'foot', 'block');
-        if (fight.phase === PHASE.juggle) {
-            launched = true;
-            break;
+    // Играем так, как играет человек: идём за телом и жмём, когда свободны.
+    const victim = fight.fighters[0];
+    const damage = [];
+    let last = victim.body.hp;
+    const juggler = (state, side) => {
+        const me = state.fighters[side];
+        const free = me.state === STATE.idle || me.state === STATE.walk;
+        return input({ left: true, hand: free });
+    };
+    for (let i = 0; i < 110; i += 1) {
+        stepFrame(fight, [still, juggler]);
+        if (victim.body.hp < last) {
+            damage.push(last - victim.body.hp);
+            last = victim.body.hp;
         }
-        assert.ok(toRead(fight), 'бой должен вернуться в чтение');
     }
-    assert.ok(launched, 'серия ударов в блок обязана его проломить');
-    assert.equal(fight.juggler, 0);
+    assert.ok(victim.juggleHits >= 3, `набралось только ${victim.juggleHits} попаданий подряд`);
+    assert.ok(damage.length >= 3);
+    assert.ok(damage[damage.length - 1] < damage[0],
+        `комбо не затухает: ${damage.map((d) => d.toFixed(1)).join(' → ')}`);
+});
+
+test('край арены калечит: нога выбивает тело в скалу', () => {
+    // Ради этого и стоит гнать противника к краю, а не бить по центру:
+    // нога заканчивает комбо, и заканчивает его о скалу.
+    const fight = createFight({ seed: 9 });
+    const player = fight.fighters[0];
+    const foe = fight.fighters[1];
+    player.x = fight.centerX + fight.wall - 120;
+    foe.x = player.x - 80;
+    drive(fight, 1);
+    // Противник ловит удар игрока и подбрасывает его в сторону скалы.
+    drive(fight, 14, once({ hand: true }), once({ hand: true, pull: true }));
+    assert.equal(player.state, STATE.launched, 'игрока должно было подбросить');
+
+    const before = player.body.hp;
+    drive(fight, 30, still, once({ foot: true }));
+    drive(fight, 120);
+    assert.ok(player.body.hp < before - 8, 'вылет в скалу обязан стоить заметно дороже обычного падения');
+    assert.ok(fight.log.some((line) => line.includes('о скалу')), `в логе нет удара о скалу: ${fight.log.join(' | ')}`);
 });
 
 test('сломанной рукой нельзя ни ударить, ни перехватить', () => {
     const fight = createFight({ seed: 13 });
     fight.fighters[0].body.bones.arm.state = BROKEN;
-    assert.deepEqual(optionsFor(fight.fighters[0]).sort(), ['block', 'catchFoot', 'foot', 'grab']);
-    assert.equal(choose(fight, 0, 'hand'), false);
-    assert.equal(choose(fight, 0, 'catchHand'), false);
-    assert.equal(choose(fight, 0, 'foot'), true);
+    assert.deepEqual(optionsFor(fight.fighters[0]).sort(), ['catchFoot', 'foot', 'grab']);
+    place(fight, 80);
+    drive(fight, 20, once({ hand: true }));
+    assert.equal(fight.fighters[1].body.hp, 100, 'сломанная рука не должна бить вовсе');
 });
 
-test('бой доигрывается до победителя и не зависает между фазами', () => {
+test('бой доигрывается до победителя и не зависает', () => {
     const fight = createFight({ seed: 21 });
-    const mine = ['catchHand', 'foot', 'grab', 'hand', 'block'];
-    let round = 0;
-    for (let t = 0; t < 240 && fight.phase !== PHASE.over; t += STEP) {
-        if (fight.phase === PHASE.read && !fight.fighters[0].choice) {
-            choose(fight, 0, mine[round % mine.length]);
-            choose(fight, 1, mine[(round + 2) % mine.length]);
-            round += 1;
-        }
-        if (fight.phase === PHASE.juggle) juggleStrike(fight, fight.juggler, 'hand');
-        tick(fight, STEP);
-    }
-    assert.equal(fight.phase, PHASE.over, 'бой не дошёл до конца за четыре минуты');
+    let n = 0;
+    const attacker = () => {
+        n += 1;
+        if (n % 34 === 0) return input({ foot: true });
+        if (n % 34 === 12) return input({ hand: true });
+        return input({ right: true });
+    };
+    for (let i = 0; i < 60 * 180 && !fight.over; i += 1) stepFrame(fight, [attacker, still]);
+    assert.ok(fight.over, 'бой не кончился за три минуты');
     assert.notEqual(fight.winner, null);
-    assert.equal(fight.fighters[fight.winner === 0 ? 1 : 0].body.hp, 0);
 });

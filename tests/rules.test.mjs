@@ -1,64 +1,61 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ACTION, ACTIONS, COUNTER_SCALE, actionFor, resolve } from '../src/rules.js';
+import { ACTION, ACTIONS, CATCHES, COUNTER_SCALE, STRIKES, lengthOf, outcomeOf } from '../src/rules.js';
 
-const typesOf = (a, b) => resolve(a, b).events.map((e) => `${e.type}:${e.from}→${e.to}`);
-
-test('треугольник замкнут: удар бьёт бросок, бросок бьёт защиту, защита бьёт удар', () => {
-    // Три грани — это весь смысл слоя чтения. Если хоть одна разорвётся,
-    // у игрока появится безнаказанный ответ, и мысленная игра исчезнет.
-    assert.deepEqual(typesOf('hand', 'grab'), ['hit:0→1'], 'удар должен опережать бросок');
-    assert.deepEqual(typesOf('grab', 'block'), ['thrown:0→1'], 'бросок должен брать блок');
-    assert.deepEqual(typesOf('grab', 'catchHand'), ['thrown:0→1'], 'бросок должен брать перехват');
-    assert.deepEqual(typesOf('hand', 'catchHand'), ['launch:1→0'], 'перехват должен ловить свой удар');
+test('треугольник: удар бьёт бросок, бросок бьёт защиту, защита бьёт удар', () => {
+    // Три грани — весь смысл размена. Разорвётся одна, и у игрока появится
+    // безнаказанный ответ.
+    assert.equal(outcomeOf('hand', { mode: 'catch', catches: 'hand', open: true }), 'launch');
+    assert.equal(outcomeOf('grab', { mode: 'catch', catches: 'hand', open: true }), 'throw');
+    assert.equal(outcomeOf('grab', { mode: 'block' }), 'throw');
+    // А удар бьёт бросок не правилом, а кадрами: бросок дольше разгоняется.
+    assert.ok(ACTION.hand.startup < ACTION.grab.startup);
+    assert.ok(ACTION.foot.startup < ACTION.grab.startup);
 });
 
-test('перехват не того типа наказывается контрхитом, а не просто провалом', () => {
-    // Без этого перехват был бы бесплатной ставкой: угадал — джагл,
-    // не угадал — обычный размен. Цена ошибки и делает его жадным ходом.
-    const events = resolve('foot', 'catchHand').events;
-    assert.equal(events.length, 1);
-    assert.equal(events[0].type, 'counter');
-    assert.equal(events[0].scale, COUNTER_SCALE);
+test('перехват не того типа и перехват впустую наказываются встречным', () => {
+    assert.equal(outcomeOf('foot', { mode: 'catch', catches: 'hand', open: true }), 'counter');
+    assert.equal(outcomeOf('hand', { mode: 'catch', catches: 'hand', open: false }), 'counter');
+    assert.equal(COUNTER_SCALE > 1, true);
 });
 
-test('рука опережает ногу, одинаковые удары идут в размен', () => {
-    // Разница между рукой и ногой должна быть не только в цифрах урона,
-    // иначе нога — это просто «рука побольше», и выбирать нечего.
-    assert.deepEqual(typesOf('hand', 'foot'), ['hit:0→1']);
-    assert.deepEqual(typesOf('foot', 'hand'), ['hit:1→0']);
-    assert.equal(resolve('hand', 'hand').events.length, 2, 'равные по скорости бьют оба');
+test('блок держит удары и не держит бросок', () => {
+    assert.equal(outcomeOf('hand', { mode: 'block' }), 'chip');
+    assert.equal(outcomeOf('foot', { mode: 'block' }), 'chip');
+    assert.equal(outcomeOf('grab', { mode: 'block' }), 'throw');
+});
+
+test('летящего не схватить, но добить можно', () => {
+    // Иначе бросок стал бы ещё и продолжением комбо, а он размен без него.
+    assert.equal(outcomeOf('grab', { mode: 'air' }), 'miss');
+    assert.equal(outcomeOf('hand', { mode: 'air' }), 'hit');
+});
+
+test('рука быстрее и слабее ноги, нога быстрее и слабее броска', () => {
+    // Ради этого у действий и разные кадры: выбор должен быть не «что
+    // сильнее», а «на что хватит времени».
     assert.ok(ACTION.hand.startup < ACTION.foot.startup);
+    assert.ok(ACTION.hand.damage < ACTION.foot.damage);
+    assert.ok(ACTION.foot.recovery > ACTION.hand.recovery, 'за длинный удар надо платить отходняком');
+    assert.ok(ACTION.grab.recovery > ACTION.foot.recovery, 'промах броском обязан быть самым дорогим');
 });
 
-test('пассивные ответы друг против друга не делают ничего', () => {
-    for (const a of ['block', 'catchHand', 'catchFoot']) {
-        for (const b of ['block', 'catchHand', 'catchFoot']) {
-            assert.deepEqual(resolve(a, b).events, [], `${a} против ${b} что-то натворили`);
-        }
+test('у каждого действия есть цвет замаха', () => {
+    // Перехват ловится реакцией, значит тип удара обязан читаться глазом.
+    // Действие без цвета — это действие, которое нечем прочитать.
+    for (const id of ACTIONS) {
+        assert.ok(ACTION[id].tell, `${id} без цвета замаха`);
+        assert.ok(lengthOf(id) > 0);
     }
-    assert.deepEqual(resolve('grab', 'grab').events, [], 'два броска — сцепка, а не двойной урон');
+    assert.notEqual(ACTION.hand.tell, ACTION.foot.tell, 'рука и нога обязаны различаться цветом');
+    assert.equal(STRIKES.length, 2);
+    assert.equal(CATCHES.length, 2);
 });
 
-test('любая пара действий разрешается, и никто не бьёт сам себя', () => {
-    for (const a of ACTIONS) {
-        for (const b of ACTIONS) {
-            for (const event of resolve(a, b).events) {
-                assert.notEqual(event.from, event.to, `${a}/${b}: ${event.type} сам по себе`);
-                assert.ok(event.from === 0 || event.from === 1);
-            }
-        }
-    }
-});
-
-test('три кнопки и два жеста дают ровно шесть действий', () => {
-    // Ввод — это одна ось «толчок или тяга». Если появится седьмое
-    // действие, ось сломается и придётся заводить лишнюю кнопку.
-    const pairs = new Set();
-    for (const id of ACTIONS) pairs.add(`${ACTION[id].button}:${ACTION[id].gesture}`);
-    assert.equal(pairs.size, ACTIONS.length);
-    assert.equal(ACTIONS.length, 6);
-    assert.equal(actionFor('hand', 'pull'), 'catchHand');
-    assert.equal(actionFor('grab', 'pull'), 'block');
+test('окно перехвата короче, чем разгон ноги, но длиннее разгона руки не бывает даром', () => {
+    // Перехват должен быть успеваемым по ноге и рискованным по руке —
+    // иначе либо он бесполезен, либо им можно закрыться от всего.
+    assert.ok(ACTION.catchFoot.active < ACTION.foot.startup + ACTION.foot.active);
+    assert.ok(ACTION.catchHand.recovery > ACTION.catchHand.active, 'промах перехватом обязан быть наказуем');
 });

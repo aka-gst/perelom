@@ -167,6 +167,31 @@ function atRest(sk) {
     return moved < 1.2 && lowest > sk.groundY - 30;
 }
 
+/**
+ * Попадание: ближайшее звено скелета в радиусе от точки, и место касания.
+ *
+ * Считается расстояние до отрезка, а не до его середины: иначе длинная
+ * кость ловит удар только в упор по центру, и попадание по голени мимо
+ * колена не засчитывается.
+ */
+export function hitBone(sk, x, y, radius) {
+    let best = null;
+    for (const stick of sk.sticks) {
+        if (!stick.bone) continue;
+        const a = sk.points[stick.a];
+        const b = sk.points[stick.b];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / len2));
+        const px = a.x + dx * t;
+        const py = a.y + dy * t;
+        const dist = Math.hypot(px - x, py - y);
+        if (dist <= radius && (!best || dist < best.dist)) best = { bone: stick.bone, x: px, y: py, dist };
+    }
+    return best;
+}
+
 /** Ближайшее к точке звено — так удар в джагле находит, какую кость ломать. */
 export function boneNear(sk, x, y) {
     let best = null;

@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1180" viewBox="0 0 1800 1180">
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1520" viewBox="0 0 1800 1520">
 <rect width="100%" height="100%" fill="#f4efe9"/>
 <text x="24" y="40" font-family="monospace" font-size="26" font-weight="700" fill="#111">ПЕРЕЛОМ — эталон скелета. Все кости одной длины во всех позах.</text>
 <g>
@@ -170,30 +170,30 @@
 <text x="1650" y="336" text-anchor="middle" font-family="monospace" font-size="18" fill="#5c5148">windFoot</text>
 </g>
 <g>
-<line x1="146.0" y1="576.0" x2="142.0" y2="546.0" stroke="#1a1a1f" stroke-width="30" stroke-linecap="round"/>
-<line x1="142.0" y1="546.0" x2="140.0" y2="524.0" stroke="#1a1a1f" stroke-width="26" stroke-linecap="round"/>
-<line x1="140.0" y1="524.0" x2="142.0" y2="506.0" stroke="#1a1a1f" stroke-width="18" stroke-linecap="round"/>
-<line x1="140.0" y1="524.0" x2="158.0" y2="553.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
-<line x1="158.0" y1="553.0" x2="166.0" y2="522.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
-<line x1="140.0" y1="524.0" x2="146.0" y2="558.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
-<line x1="146.0" y1="558.0" x2="116.0" y2="546.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
-<line x1="146.0" y1="576.0" x2="187.0" y2="589.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
-<line x1="187.0" y1="589.0" x2="222.0" y2="568.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
-<line x1="146.0" y1="576.0" x2="145.0" y2="619.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
-<line x1="145.0" y1="619.0" x2="118.0" y2="650.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
-<circle cx="142.0" cy="506.0" r="15" fill="#1a1a1f"/>
-<circle cx="146.0" cy="576.0" r="3" fill="#d81e3c"/>
-<circle cx="142.0" cy="546.0" r="3" fill="#d81e3c"/>
-<circle cx="140.0" cy="524.0" r="3" fill="#d81e3c"/>
-<circle cx="142.0" cy="506.0" r="3" fill="#d81e3c"/>
-<circle cx="158.0" cy="553.0" r="3" fill="#d81e3c"/>
-<circle cx="166.0" cy="522.0" r="3" fill="#d81e3c"/>
-<circle cx="146.0" cy="558.0" r="3" fill="#d81e3c"/>
-<circle cx="116.0" cy="546.0" r="3" fill="#d81e3c"/>
-<circle cx="187.0" cy="589.0" r="3" fill="#d81e3c"/>
-<circle cx="222.0" cy="568.0" r="3" fill="#d81e3c"/>
-<circle cx="145.0" cy="619.0" r="3" fill="#d81e3c"/>
-<circle cx="118.0" cy="650.0" r="3" fill="#d81e3c"/>
+<line x1="160.0" y1="578.0" x2="154.0" y2="549.0" stroke="#1a1a1f" stroke-width="30" stroke-linecap="round"/>
+<line x1="154.0" y1="549.0" x2="151.0" y2="527.0" stroke="#1a1a1f" stroke-width="26" stroke-linecap="round"/>
+<line x1="151.0" y1="527.0" x2="152.0" y2="509.0" stroke="#1a1a1f" stroke-width="18" stroke-linecap="round"/>
+<line x1="151.0" y1="527.0" x2="171.0" y2="555.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="171.0" y1="555.0" x2="180.0" y2="524.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="151.0" y1="527.0" x2="158.0" y2="560.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="158.0" y1="560.0" x2="128.0" y2="548.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="160.0" y1="578.0" x2="203.0" y2="582.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="203.0" y1="582.0" x2="242.0" y2="570.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="160.0" y1="578.0" x2="155.0" y2="621.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="155.0" y1="621.0" x2="126.0" y2="650.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<circle cx="152.0" cy="509.0" r="15" fill="#1a1a1f"/>
+<circle cx="160.0" cy="578.0" r="3" fill="#d81e3c"/>
+<circle cx="154.0" cy="549.0" r="3" fill="#d81e3c"/>
+<circle cx="151.0" cy="527.0" r="3" fill="#d81e3c"/>
+<circle cx="152.0" cy="509.0" r="3" fill="#d81e3c"/>
+<circle cx="171.0" cy="555.0" r="3" fill="#d81e3c"/>
+<circle cx="180.0" cy="524.0" r="3" fill="#d81e3c"/>
+<circle cx="158.0" cy="560.0" r="3" fill="#d81e3c"/>
+<circle cx="128.0" cy="548.0" r="3" fill="#d81e3c"/>
+<circle cx="203.0" cy="582.0" r="3" fill="#d81e3c"/>
+<circle cx="242.0" cy="570.0" r="3" fill="#d81e3c"/>
+<circle cx="155.0" cy="621.0" r="3" fill="#d81e3c"/>
+<circle cx="126.0" cy="650.0" r="3" fill="#d81e3c"/>
 <line x1="40" y1="650" x2="260" y2="650" stroke="#c3b8ab" stroke-width="2"/>
 <text x="150" y="676" text-anchor="middle" font-family="monospace" font-size="18" fill="#5c5148">hitFoot</text>
 </g>
@@ -282,42 +282,98 @@
 <text x="1050" y="676" text-anchor="middle" font-family="monospace" font-size="18" fill="#5c5148">hurt</text>
 </g>
 <g>
-<line x1="1350.0" y1="606.0" x2="1354.0" y2="576.0" stroke="#1a1a1f" stroke-width="30" stroke-linecap="round"/>
-<line x1="1354.0" y1="576.0" x2="1356.0" y2="554.0" stroke="#1a1a1f" stroke-width="26" stroke-linecap="round"/>
-<line x1="1356.0" y1="554.0" x2="1363.0" y2="538.0" stroke="#1a1a1f" stroke-width="18" stroke-linecap="round"/>
-<line x1="1356.0" y1="554.0" x2="1367.0" y2="587.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
-<line x1="1367.0" y1="587.0" x2="1384.0" y2="560.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
-<line x1="1356.0" y1="554.0" x2="1361.0" y2="588.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
-<line x1="1361.0" y1="588.0" x2="1346.0" y2="560.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
-<line x1="1350.0" y1="606.0" x2="1390.0" y2="621.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
-<line x1="1390.0" y1="621.0" x2="1362.0" y2="650.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
-<line x1="1350.0" y1="606.0" x2="1376.0" y2="640.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
-<line x1="1376.0" y1="640.0" x2="1336.0" y2="650.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
-<circle cx="1363.0" cy="538.0" r="15" fill="#1a1a1f"/>
-<circle cx="1350.0" cy="606.0" r="3" fill="#d81e3c"/>
-<circle cx="1354.0" cy="576.0" r="3" fill="#d81e3c"/>
-<circle cx="1356.0" cy="554.0" r="3" fill="#d81e3c"/>
-<circle cx="1363.0" cy="538.0" r="3" fill="#d81e3c"/>
-<circle cx="1367.0" cy="587.0" r="3" fill="#d81e3c"/>
-<circle cx="1384.0" cy="560.0" r="3" fill="#d81e3c"/>
-<circle cx="1361.0" cy="588.0" r="3" fill="#d81e3c"/>
-<circle cx="1346.0" cy="560.0" r="3" fill="#d81e3c"/>
-<circle cx="1390.0" cy="621.0" r="3" fill="#d81e3c"/>
-<circle cx="1362.0" cy="650.0" r="3" fill="#d81e3c"/>
-<circle cx="1376.0" cy="640.0" r="3" fill="#d81e3c"/>
-<circle cx="1336.0" cy="650.0" r="3" fill="#d81e3c"/>
+<line x1="1350.0" y1="568.0" x2="1351.0" y2="538.0" stroke="#1a1a1f" stroke-width="30" stroke-linecap="round"/>
+<line x1="1351.0" y1="538.0" x2="1352.0" y2="516.0" stroke="#1a1a1f" stroke-width="26" stroke-linecap="round"/>
+<line x1="1352.0" y1="516.0" x2="1356.0" y2="499.0" stroke="#1a1a1f" stroke-width="18" stroke-linecap="round"/>
+<line x1="1352.0" y1="516.0" x2="1368.0" y2="546.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="1368.0" y1="546.0" x2="1372.0" y2="514.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="1352.0" y1="516.0" x2="1338.0" y2="547.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="1338.0" y1="547.0" x2="1346.0" y2="516.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="1350.0" y1="568.0" x2="1385.0" y2="593.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="1385.0" y1="593.0" x2="1390.0" y2="634.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="1350.0" y1="568.0" x2="1335.0" y2="608.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="1335.0" y1="608.0" x2="1315.0" y2="644.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<circle cx="1356.0" cy="499.0" r="15" fill="#1a1a1f"/>
+<circle cx="1350.0" cy="568.0" r="3" fill="#d81e3c"/>
+<circle cx="1351.0" cy="538.0" r="3" fill="#d81e3c"/>
+<circle cx="1352.0" cy="516.0" r="3" fill="#d81e3c"/>
+<circle cx="1356.0" cy="499.0" r="3" fill="#d81e3c"/>
+<circle cx="1368.0" cy="546.0" r="3" fill="#d81e3c"/>
+<circle cx="1372.0" cy="514.0" r="3" fill="#d81e3c"/>
+<circle cx="1338.0" cy="547.0" r="3" fill="#d81e3c"/>
+<circle cx="1346.0" cy="516.0" r="3" fill="#d81e3c"/>
+<circle cx="1385.0" cy="593.0" r="3" fill="#d81e3c"/>
+<circle cx="1390.0" cy="634.0" r="3" fill="#d81e3c"/>
+<circle cx="1335.0" cy="608.0" r="3" fill="#d81e3c"/>
+<circle cx="1315.0" cy="644.0" r="3" fill="#d81e3c"/>
 <line x1="1240" y1="650" x2="1460" y2="650" stroke="#c3b8ab" stroke-width="2"/>
-<text x="1350" y="676" text-anchor="middle" font-family="monospace" font-size="18" fill="#5c5148">getup</text>
+<text x="1350" y="676" text-anchor="middle" font-family="monospace" font-size="18" fill="#5c5148">step</text>
 </g>
-<text x="24" y="770" font-family="monospace" font-size="24" font-weight="700" fill="#111">Как крепится спрайт части тела (пример: предплечье с кистью)</text>
-<rect x="60" y="810" width="224" height="128" fill="#fff" stroke="#8c8078" stroke-width="2" stroke-dasharray="6 6"/>
-<path d="M 76 874 L 204 874" stroke="#8c8078" stroke-width="2" stroke-dasharray="4 5"/>
-<path d="M 76 848 L 194 844 L 256 834 L 262 892 L 198 902 L 76 900 Z" fill="#1a1a1f" opacity="0.85"/>
-<circle cx="76" cy="874" r="7" fill="#d81e3c"/>
-<circle cx="204" cy="874" r="7" fill="#d81e3c"/>
-<text x="76" y="934" text-anchor="middle" font-family="monospace" font-size="18" fill="#d81e3c">A — локоть (16, 64)</text>
-<text x="204" y="958" text-anchor="middle" font-family="monospace" font-size="18" fill="#d81e3c">B — запястье (144, 64)</text>
-<text x="60" y="978" font-family="monospace" font-size="17" fill="#333">Кость лежит горизонтально: сустав A слева, сустав B справа, оба на середине высоты.</text>
-<text x="60" y="1002" font-family="monospace" font-size="17" fill="#333">Кулак выходит ЗА сустав B — под него в спрайте оставлено 64 px справа.</text>
-<text x="60" y="1026" font-family="monospace" font-size="17" fill="#333">Код поворачивает спрайт так, чтобы A и B легли на суставы скелета. Больше он ничего не двигает.</text>
+<g>
+<line x1="1650.0" y1="572.0" x2="1650.0" y2="542.0" stroke="#1a1a1f" stroke-width="30" stroke-linecap="round"/>
+<line x1="1650.0" y1="542.0" x2="1651.0" y2="520.0" stroke="#1a1a1f" stroke-width="26" stroke-linecap="round"/>
+<line x1="1651.0" y1="520.0" x2="1654.0" y2="502.0" stroke="#1a1a1f" stroke-width="18" stroke-linecap="round"/>
+<line x1="1651.0" y1="520.0" x2="1675.0" y2="544.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="1675.0" y1="544.0" x2="1676.0" y2="512.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="1651.0" y1="520.0" x2="1627.0" y2="544.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="1627.0" y1="544.0" x2="1642.0" y2="516.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="1650.0" y1="572.0" x2="1690.0" y2="589.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="1690.0" y1="589.0" x2="1666.0" y2="622.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="1650.0" y1="572.0" x2="1656.0" y2="615.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="1656.0" y1="615.0" x2="1616.0" y2="624.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<circle cx="1654.0" cy="502.0" r="15" fill="#1a1a1f"/>
+<circle cx="1650.0" cy="572.0" r="3" fill="#d81e3c"/>
+<circle cx="1650.0" cy="542.0" r="3" fill="#d81e3c"/>
+<circle cx="1651.0" cy="520.0" r="3" fill="#d81e3c"/>
+<circle cx="1654.0" cy="502.0" r="3" fill="#d81e3c"/>
+<circle cx="1675.0" cy="544.0" r="3" fill="#d81e3c"/>
+<circle cx="1676.0" cy="512.0" r="3" fill="#d81e3c"/>
+<circle cx="1627.0" cy="544.0" r="3" fill="#d81e3c"/>
+<circle cx="1642.0" cy="516.0" r="3" fill="#d81e3c"/>
+<circle cx="1690.0" cy="589.0" r="3" fill="#d81e3c"/>
+<circle cx="1666.0" cy="622.0" r="3" fill="#d81e3c"/>
+<circle cx="1656.0" cy="615.0" r="3" fill="#d81e3c"/>
+<circle cx="1616.0" cy="624.0" r="3" fill="#d81e3c"/>
+<line x1="1540" y1="650" x2="1760" y2="650" stroke="#c3b8ab" stroke-width="2"/>
+<text x="1650" y="676" text-anchor="middle" font-family="monospace" font-size="18" fill="#5c5148">air</text>
+</g>
+<g>
+<line x1="150.0" y1="946.0" x2="154.0" y2="916.0" stroke="#1a1a1f" stroke-width="30" stroke-linecap="round"/>
+<line x1="154.0" y1="916.0" x2="156.0" y2="894.0" stroke="#1a1a1f" stroke-width="26" stroke-linecap="round"/>
+<line x1="156.0" y1="894.0" x2="163.0" y2="878.0" stroke="#1a1a1f" stroke-width="18" stroke-linecap="round"/>
+<line x1="156.0" y1="894.0" x2="166.0" y2="927.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="166.0" y1="927.0" x2="184.0" y2="900.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="156.0" y1="894.0" x2="162.0" y2="928.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="162.0" y1="928.0" x2="146.0" y2="900.0" stroke="#1a1a1f" stroke-width="13" stroke-linecap="round"/>
+<line x1="150.0" y1="946.0" x2="190.0" y2="961.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="190.0" y1="961.0" x2="162.0" y2="990.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="150.0" y1="946.0" x2="176.0" y2="980.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<line x1="176.0" y1="980.0" x2="136.0" y2="990.0" stroke="#1a1a1f" stroke-width="16" stroke-linecap="round"/>
+<circle cx="163.0" cy="878.0" r="15" fill="#1a1a1f"/>
+<circle cx="150.0" cy="946.0" r="3" fill="#d81e3c"/>
+<circle cx="154.0" cy="916.0" r="3" fill="#d81e3c"/>
+<circle cx="156.0" cy="894.0" r="3" fill="#d81e3c"/>
+<circle cx="163.0" cy="878.0" r="3" fill="#d81e3c"/>
+<circle cx="166.0" cy="927.0" r="3" fill="#d81e3c"/>
+<circle cx="184.0" cy="900.0" r="3" fill="#d81e3c"/>
+<circle cx="162.0" cy="928.0" r="3" fill="#d81e3c"/>
+<circle cx="146.0" cy="900.0" r="3" fill="#d81e3c"/>
+<circle cx="190.0" cy="961.0" r="3" fill="#d81e3c"/>
+<circle cx="162.0" cy="990.0" r="3" fill="#d81e3c"/>
+<circle cx="176.0" cy="980.0" r="3" fill="#d81e3c"/>
+<circle cx="136.0" cy="990.0" r="3" fill="#d81e3c"/>
+<line x1="40" y1="990" x2="260" y2="990" stroke="#c3b8ab" stroke-width="2"/>
+<text x="150" y="1016" text-anchor="middle" font-family="monospace" font-size="18" fill="#5c5148">getup</text>
+</g>
+<text x="24" y="1110" font-family="monospace" font-size="24" font-weight="700" fill="#111">Как крепится спрайт части тела (пример: предплечье с кистью)</text>
+<rect x="60" y="1150" width="224" height="128" fill="#fff" stroke="#8c8078" stroke-width="2" stroke-dasharray="6 6"/>
+<path d="M 76 1214 L 204 1214" stroke="#8c8078" stroke-width="2" stroke-dasharray="4 5"/>
+<path d="M 76 1188 L 194 1184 L 256 1174 L 262 1232 L 198 1242 L 76 1240 Z" fill="#1a1a1f" opacity="0.85"/>
+<circle cx="76" cy="1214" r="7" fill="#d81e3c"/>
+<circle cx="204" cy="1214" r="7" fill="#d81e3c"/>
+<text x="76" y="1274" text-anchor="middle" font-family="monospace" font-size="18" fill="#d81e3c">A — локоть (16, 64)</text>
+<text x="204" y="1298" text-anchor="middle" font-family="monospace" font-size="18" fill="#d81e3c">B — запястье (144, 64)</text>
+<text x="60" y="1318" font-family="monospace" font-size="17" fill="#333">Кость лежит горизонтально: сустав A слева, сустав B справа, оба на середине высоты.</text>
+<text x="60" y="1342" font-family="monospace" font-size="17" fill="#333">Кулак выходит ЗА сустав B — под него в спрайте оставлено 64 px справа.</text>
+<text x="60" y="1366" font-family="monospace" font-size="17" fill="#333">Код поворачивает спрайт так, чтобы A и B легли на суставы скелета. Больше он ничего не двигает.</text>
 </svg>

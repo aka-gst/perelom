@@ -35,7 +35,9 @@ test('перелом вычёркивает действие из треугол
     const left = availableActions(body, ACTIONS);
     assert.ok(!left.includes('hand'), 'сломанной рукой бить нельзя');
     assert.ok(!left.includes('catchHand'), 'сломанной рукой нельзя и перехватывать');
-    assert.ok(left.includes('foot') && left.includes('block'), 'остальное должно остаться');
+    assert.ok(left.includes('foot') && left.includes('grab'), 'остальное должно остаться');
+    // Блок из списка действий ушёл намеренно: теперь это шаг назад, и
+    // отнять его переломом нельзя — пока боец стоит, он может отступать.
 });
 
 test('сломанные рёбра делают хрупче всё тело, а не только рёбра', () => {

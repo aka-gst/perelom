@@ -10,7 +10,9 @@
  */
 
 import { BONES, BONE_IDS, INTACT, TORN } from './body.js';
-import { PHASE } from './fight.js';
+import { STATE } from './fight.js';
+import { ACTION } from './rules.js';
+import { centerOf } from './physics.js';
 import { BONE_OF_LAYER, HEAD, LAYERS, PAD, PIECE_BY_ID, SCALE } from './sprites.js';
 
 const SKIN = ['#05060a', '#05060a'];
@@ -29,34 +31,134 @@ const WIDTH = {
 };
 
 export function draw(ctx, fight, w, h, time) {
+    const cam = cameraOf(fight, w, h);
     ctx.save();
-    const shake = fight.shake;
-    if (shake > 0) {
-        ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    if (fight.shake > 0.4) {
+        ctx.translate((Math.random() - 0.5) * fight.shake, (Math.random() - 0.5) * fight.shake);
     }
 
-    backdrop(ctx, fight, w, h, time);
+    // Фон рисуется в экранных координатах, а бойцы — в координатах камеры.
+    // Чтобы линия земли у них совпала, её положение считается один раз здесь.
+    const horizon = h * 0.62 + (fight.groundY - cam.y) * cam.zoom;
+    backdrop(ctx, fight, w, h, time, cam, horizon);
 
-    // Камера приближает бойцов, но не фон: масштаб взят относительно линии
-    // земли, поэтому ступни остаются на ней, а дальний план не разъезжается.
     ctx.save();
-    ctx.translate(w / 2, fight.groundY);
-    ctx.scale(ZOOM, ZOOM);
-    ctx.translate(-w / 2, -fight.groundY);
+    ctx.translate(w / 2, h * 0.62);
+    ctx.scale(cam.zoom, cam.zoom);
+    ctx.translate(-cam.x, -cam.y);
+    ground(ctx, fight, cam, w);
     for (const fighter of fight.fighters) bloodOf(ctx, fighter);
     for (const fighter of fight.fighters) silhouette(ctx, fighter, fight);
-    if (fight.phase === PHASE.juggle) juggleGlow(ctx, fight);
+    for (const fighter of fight.fighters) telegraph(ctx, fighter);
+    for (const fighter of fight.fighters) if (fighter.state === STATE.launched) juggleGlow(ctx, fighter);
     ctx.restore();
 
     ctx.restore();
 
-    if (fight.phase === PHASE.xray && fight.xray) xray(ctx, fight, w, h);
+    if (fight.xray) xray(ctx, fight, w, h);
+}
+
+/**
+ * Камера. В файтинге без неё нельзя: бойцы расходятся на всю арену, и без
+ * слежения половина боя уезжает за край. Наезжает, когда сходятся вплотную,
+ * и отъезжает, когда разбегаются, но за границы арены не выходит.
+ */
+function cameraOf(fight, w, h) {
+    const [a, b] = fight.fighters;
+    const ax = a.sk.mode === 'ragdoll' ? centerOf(a.sk).x : a.x;
+    const bx = b.sk.mode === 'ragdoll' ? centerOf(b.sk).x : b.x;
+    const span = Math.abs(ax - bx) + 340;
+    const zoom = Math.max(1.0, Math.min(2.0, w / span));
+    const half = w / (2 * zoom);
+    const left = fight.centerX - fight.wall;
+    const right = fight.centerX + fight.wall;
+    let x = (ax + bx) / 2;
+    if (right - left > half * 2) x = Math.max(left + half, Math.min(right - half, x));
+    else x = (left + right) / 2;
+
+    // Когда кого-то подбросили, кадр идёт следом вверх — иначе джагл уходит
+    // за верхний край именно в тот момент, ради которого он и затевался.
+    const top = Math.min(topOf(a), topOf(b));
+    const lift = Math.max(0, fight.groundY - 150 - top);
+    const y = fight.groundY - 96 - Math.min(150, lift * 0.65);
+    return { x, y, zoom };
+}
+
+function topOf(f) {
+    let top = Infinity;
+    for (const id of Object.keys(f.sk.points)) top = Math.min(top, f.sk.points[id].y);
+    return top;
+}
+
+function ground(ctx, fight, cam, w) {
+    const left = fight.centerX - fight.wall;
+    const right = fight.centerX + fight.wall;
+    const span = (right - left) + 4000;
+    ctx.fillStyle = '#0c0710';
+    ctx.fillRect(left - 2000, fight.groundY, span, 600);
+    ctx.fillStyle = 'rgba(255,120,90,0.3)';
+    ctx.fillRect(left - 2000, fight.groundY, span, 2);
+    // Края арены отмечены: в них ломают кости, и это должно быть видно.
+    ctx.fillStyle = 'rgba(255,60,70,0.16)';
+    ctx.fillRect(left - 26, fight.groundY - 190, 26, 190);
+    ctx.fillRect(right, fight.groundY - 190, 26, 190);
+}
+
+/**
+ * Телеграф удара: цвет типа на разгоне.
+ *
+ * Это не украшение, а условие честности. Перехват ловится реакцией, значит
+ * тип удара обязан читаться с первого кадра замаха — иначе перехват снова
+ * становится угадайкой, то есть тем же самым, от чего ушли.
+ */
+function telegraph(ctx, f) {
+    if (f.state !== STATE.attack || !f.action) return;
+    const spec = ACTION[f.action];
+    const total = spec.startup + spec.active;
+    if (f.frame > total + 2) return;
+
+    const joint = spec.joint ?? 'handF';
+    const point = f.sk.points[joint];
+    if (!point) return;
+    const live = f.frame >= spec.startup;
+    const k = live ? 1 : f.frame / Math.max(1, spec.startup);
+
+    ctx.save();
+    if (spec.kind === 'catch') {
+        // Перехват светится вокруг бойца: видно, что он открыл окно.
+        const c = centerOf(f.sk);
+        ctx.globalAlpha = live ? 0.55 : 0.25;
+        ctx.strokeStyle = spec.tell;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 46 + (live ? 8 : 0), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        return;
+    }
+    ctx.globalAlpha = live ? 0.9 : 0.25 + k * 0.5;
+    ctx.strokeStyle = spec.tell;
+    ctx.lineWidth = live ? 5 : 2 + k * 3;
+    ctx.lineCap = 'round';
+    const from = f.sk.points[joint === 'footF' ? 'kneeF' : 'elbowF'];
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    if (live) {
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = spec.tell;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, spec.reach * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
 }
 
 /* ─────────────────────────── фон ─────────────────────────── */
 
-function backdrop(ctx, fight, w, h, time) {
-    const sky = ctx.createLinearGradient(0, 0, 0, fight.groundY);
+function backdrop(ctx, fight, w, h, time, cam, horizon) {
+    const sky = ctx.createLinearGradient(0, 0, 0, horizon);
     // Небо намеренно светлее, чем просится по настроению: подброшенный
     // боец улетает высоко, и на чёрном небе чёрный силуэт исчезает —
     // в кадре остаются одни контурные линии. Силуэту нужен фон.
@@ -69,7 +171,7 @@ function backdrop(ctx, fight, w, h, time) {
     // Диск за спинами: единственный источник света в кадре, он же делает
     // силуэты силуэтами.
     const cx = w * 0.5;
-    const cy = fight.groundY - 150;
+    const cy = horizon - 150;
     const glow = ctx.createRadialGradient(cx, cy, 20, cx, cy, 420);
     glow.addColorStop(0, 'rgba(255,224,190,0.98)');
     glow.addColorStop(0.22, 'rgba(255,150,110,0.5)');
@@ -81,24 +183,23 @@ function backdrop(ctx, fight, w, h, time) {
 
     const art = fight.arenaArt;
     if (art?.ready) {
-        // Слои ставятся нижним краем на линию земли и чуть разъезжаются
-        // по горизонтали — этим и держится глубина.
-        const shift = [10, -6, -22];
+        // Параллакс наконец заработал: пока бойцы стояли на месте, слои
+        // ездить было не от чего. Дальний план почти не двигается, ближний
+        // идёт следом за камерой.
+        const rate = [0.12, 0.34, 0.62];
+        const drift = cam ? cam.x - fight.centerX : 0;
         art.order.forEach((id, i) => {
             const img = art.images[id];
-            const scale = (w * 1.12) / img.naturalWidth;
+            const scale = (w * 1.35) / img.naturalWidth;
             const dh = img.naturalHeight * scale;
-            ctx.drawImage(img, -w * 0.06 + shift[i], fight.groundY - dh, w * 1.12, dh);
+            const dw = w * 1.35;
+            ctx.drawImage(img, -(dw - w) / 2 - drift * rate[i], horizon - dh, dw, dh);
         });
     } else {
-        ridge(ctx, w, fight.groundY, 128, '#5c0b16', 0.7, time * 0.004);
-        ridge(ctx, w, fight.groundY, 78, '#33060e', 1.3, time * 0.009);
+        ridge(ctx, w, horizon, 128, '#5c0b16', 0.7, time * 0.004);
+        ridge(ctx, w, horizon, 78, '#33060e', 1.3, time * 0.009);
     }
 
-    ctx.fillStyle = '#0c0710';
-    ctx.fillRect(0, fight.groundY, w, h - fight.groundY);
-    ctx.fillStyle = 'rgba(255,120,90,0.3)';
-    ctx.fillRect(0, fight.groundY, w, 2);
 }
 
 function ridge(ctx, w, groundY, height, color, freq, phase) {
@@ -257,9 +358,8 @@ function bloodOf(ctx, fighter) {
     ctx.globalAlpha = 1;
 }
 
-/** Пока идёт джагл, поле подсвечено: слой чтения выключен, и это видно. */
-function juggleGlow(ctx, fight) {
-    const victim = fight.fighters[fight.victim];
+/** Пока тело в воздухе, оно подсвечено: идёт джагл, и это видно. */
+function juggleGlow(ctx, victim) {
     const p = victim.sk.points.pelvis;
     ctx.save();
     ctx.globalAlpha = 0.5;
@@ -282,7 +382,7 @@ function juggleGlow(ctx, fight) {
 function xray(ctx, fight, w, h) {
     const info = fight.xray;
     const victim = fight.fighters[info.side];
-    const t = 1 - fight.timer / 1.6;
+    const t = 1 - fight.xrayFrames / 96;
     // Камера именно ныряет, а не подъезжает: кость должна занять кадр.
     const zoom = 2.4 + Math.min(1, t * 2.2) * 1.9;
 

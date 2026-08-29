@@ -29,17 +29,24 @@
 
     <!-- ─────────────── ОБУЧЕНИЕ ─────────────── -->
     <section class="screen screen--menu" id="screen-learn" hidden>
+        <h2 class="title title--sm">УПРАВЛЕНИЕ</h2>
+        <ul class="rules">
+            <li><b>← →</b> ходить. <b>Шаг назад — это блок</b>, отдельной кнопки нет: за защиту всегда платишь позицией.</li>
+            <li><b>↑</b> прыжок, <b>двойное нажатие</b> в сторону — рывок.</li>
+            <li><b>J</b> рука, <b>K</b> нога, <b>L</b> бросок. С зажатым <b>Shift</b> — перехват руки и перехват ноги.</li>
+        </ul>
         <h2 class="title title--sm">ТРЕУГОЛЬНИК</h2>
         <ul class="rules">
-            <li><b>Удар</b> опережает <b>бросок</b>. Рука быстрее ноги и перебивает её.</li>
-            <li><b>Бросок</b> берёт и <b>блок</b>, и <b>перехват</b>: защита заточена под удары.</li>
-            <li><b>Перехват</b> ловит <b>удар</b> — но надо угадать тип. Угадал: противник в воздухе. Не угадал: контрхит ×1.6.</li>
+            <li><b>Удар</b> опережает <b>бросок</b>: бросок долго разгоняется, его прерывают.</li>
+            <li><b>Бросок</b> берёт и <b>блок</b>, и <b>перехват</b> — но только вплотную.</li>
+            <li><b>Перехват</b> ловит <b>удар</b>, если успел и угадал тип. Угадал — противник в воздухе. Не угадал — встречный ×1.6.</li>
+            <li>Замах светится цветом своего удара. Не увидел цвет — перехватывать нечем.</li>
         </ul>
-        <h2 class="title title--sm">ДВА СЛОЯ</h2>
+        <h2 class="title title--sm">ДЖАГЛ</h2>
         <ul class="rules">
-            <li><b>Чтение</b> — оба выбирают вслепую, полторы секунды.</li>
-            <li><b>Джагл</b> — пока тело в воздухе, читать нечего. Рука держит в воздухе, нога выбивает и добивает.</li>
-            <li>Каждый следующий удар в джагле слабее. Комбо не бесконечно.</li>
+            <li>Пока тело в воздухе, оно не блокирует и не перехватывает. Рука держит его в воздухе, нога выбивает и добивает.</li>
+            <li>Каждый следующий удар в комбо слабее. Бесконечных нет.</li>
+            <li><b>Край арены калечит:</b> впечатать в скалу — сломать ту кость, которая коснулась.</li>
         </ul>
         <h2 class="title title--sm">ПЕРЕЛОМЫ</h2>
         <ul class="rules">
@@ -60,10 +67,7 @@
                 <div class="bar-guard" id="guard-0"></div>
                 <div class="bar-bones" id="bones-0"></div>
             </div>
-            <div class="clock">
-                <div class="clock-phase" id="phase">ЧТЕНИЕ</div>
-                <div class="clock-track"><i class="clock-fill" id="clock"></i></div>
-            </div>
+            <div class="clock"><div class="clock-phase">ПЕРЕЛОМ</div></div>
             <div class="bar bar--right">
                 <div class="bar-name" id="name-1">ПРОТИВНИК</div>
                 <div class="bar-track"><i class="bar-fill bar-fill--foe" id="hp-1"></i></div>
@@ -83,19 +87,22 @@
         <div class="pad" id="pad">
             <button class="key" data-button="hand">
                 <span class="key-name">РУКА</span>
-                <span class="key-hint"><i>↑ удар</i><i>↓ перехват</i></span>
+                <span class="key-hint"><i>J</i><i>быстрая, ближняя</i></span>
             </button>
             <button class="key" data-button="foot">
                 <span class="key-name">НОГА</span>
-                <span class="key-hint"><i>↑ удар</i><i>↓ перехват</i></span>
+                <span class="key-hint"><i>K</i><i>долгая, дальняя</i></span>
             </button>
             <button class="key" data-button="grab">
                 <span class="key-name">БРОСОК</span>
-                <span class="key-hint"><i>↑ бросок</i><i>↓ блок</i></span>
+                <span class="key-hint"><i>L</i><i>вплотную, бьёт блок</i></span>
             </button>
         </div>
 
-        <p class="keys">Клавиши: <b>J K L</b> — толчок · с <b>Shift</b> или <b>↓</b> — тяга</p>
+        <p class="keys">
+            <b>← →</b> ходить · шаг назад — блок · <b>↑</b> прыжок · двойное нажатие — рывок ·
+            <b>J K L</b> рука, нога, бросок · с <b>Shift</b> — перехват
+        </p>
     </section>
 
 </main>

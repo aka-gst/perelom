@@ -17,7 +17,7 @@
  * Щуп: рисует отдельные моменты боя без игрового цикла.
  * Только для разработки — на сервер не едет.
  */
-import { createFight, choose, juggleStrike, tick, PHASE } from './src/fight.js';
+import { createFight, stepFrame, STATE } from './src/fight.js';
 import { draw } from './src/render.js';
 import { BROKEN, TORN } from './src/body.js';
 import { POSES } from './src/poses.js';
@@ -26,11 +26,27 @@ import { loadArenaArt, loadFighterArt } from './src/sprites.js';
 
 const ART = { zhila: loadFighterArt('zhila'), kostolom: loadFighterArt('kostolom'), arena: loadArenaArt('dusk') };
 
-const STEP = 1 / 60;
+const NEUTRAL = {
+    left: false, right: false, up: false, down: false,
+    hand: false, foot: false, grab: false, pull: false,
+    dashLeft: false, dashRight: false,
+};
+const still = () => ({ ...NEUTRAL });
+const once = (press, hold = {}) => {
+    let done = false;
+    return () => (done ? { ...NEUTRAL, ...hold } : ((done = true), { ...NEUTRAL, ...hold, ...press }));
+};
+const drive = (fight, frames, a = still, b = still) => {
+    for (let i = 0; i < frames; i += 1) stepFrame(fight, [a, b]);
+};
+const place = (fight, gap) => {
+    fight.fighters[0].x = fight.centerX - gap / 2;
+    fight.fighters[1].x = fight.centerX + gap / 2;
+    drive(fight, 1);
+};
+
 const out = document.getElementById('out');
 const redraws = [];
-
-let index = 0;
 
 function shot(title, note, build) {
     const h = document.createElement('h2');
@@ -42,26 +58,30 @@ function shot(title, note, build) {
     const p = document.createElement('p');
     p.textContent = note;
     out.append(h, canvas, p);
-    redraws.push(() => { const f = createFight({ seed: 4 }); f.fighters[0].art = ART.zhila; f.fighters[1].art = ART.kostolom; f.arenaArt = ART.arena; build(f); draw(canvas.getContext('2d'), f, 960, 540, 1); });
-    const fight = createFight({ seed: 4 });
-    fight.fighters[0].art = ART.zhila;
-    fight.fighters[1].art = ART.kostolom;
-    fight.arenaArt = ART.arena;
-    build(fight);
-    draw(canvas.getContext('2d'), fight, 960, 540, 1);
-    return fight;
+    const render = () => {
+        const fight = createFight({ seed: 4 });
+        fight.fighters[0].art = ART.zhila;
+        fight.fighters[1].art = ART.kostolom;
+        fight.arenaArt = ART.arena;
+        build(fight);
+        draw(canvas.getContext('2d'), fight, 960, 540, 1);
+    };
+    redraws.push(render);
+    render();
 }
 
+let index = 0;
+
 /** Лист всех поз: по нему сверяется заказ на графику. */
-function poseSheet(names, index) {
+function poseSheet(names, sheet) {
     const h = document.createElement('h2');
-    h.textContent = `ПОЗЫ ${index + 1} — эталон для заказа графики`;
+    h.textContent = `ПОЗЫ ${sheet + 1} — эталон для заказа графики`;
     const canvas = document.createElement('canvas');
-    canvas.id = `shot-poses-${index}`;
+    canvas.id = `shot-poses-${sheet}`;
     canvas.width = 960;
     canvas.height = 480;
     const p = document.createElement('p');
-    p.textContent = 'Каждая кость одной длины во всех позах: рука 66, нога 84, рост 163. Точками отмечены суставы — места крепления спрайтов.';
+    p.textContent = 'Каждая кость одной длины во всех позах. Точками отмечены суставы.';
     out.append(h, canvas, p);
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#141018';
@@ -87,7 +107,6 @@ function poseSheet(names, index) {
         ctx.beginPath();
         ctx.arc(sk.points.head.x, sk.points.head.y, 15, 0, Math.PI * 2);
         ctx.fill();
-        // Суставы точками — по ним художник видит, где крепления спрайтов.
         ctx.fillStyle = '#ff2d55';
         for (const id of Object.keys(sk.points)) {
             ctx.beginPath();
@@ -104,60 +123,49 @@ function poseSheet(names, index) {
 const POSE_NAMES = Object.keys(POSES);
 for (let i = 0; i * 4 < POSE_NAMES.length; i += 1) poseSheet(POSE_NAMES.slice(i * 4, i * 4 + 4), i);
 
-shot('СТОЙКА', 'Оба в чтении: силуэты, контровой свет, тень под ногами.', (f) => {
-    for (let i = 0; i < 6; i += 1) tick(f, STEP);
+shot('СТОЙКА', 'Двое в нейтралке. Камера держит обоих и наезжает, когда сходятся.', (f) => {
+    place(f, 190);
+    drive(f, 6);
 });
 
-shot('УДАР НОГОЙ', 'Бьющий анимирован по кадрам, а не физикой: удар должен быть читаемым.', (f) => {
-    choose(f, 0, 'foot');
-    choose(f, 1, 'block');
-    tick(f, STEP);
-    for (let i = 0; i < 20; i += 1) tick(f, STEP);
+shot('УДАР НОГОЙ В КОНТАКТ', 'Кадр попадания. Оранжевый след — телеграф типа удара: без него перехват был бы угадайкой.', (f) => {
+    place(f, 108);
+    drive(f, 18, once({ foot: true }));
 });
 
-shot('УДАР РУКОЙ В КОНТАКТ', 'Кадр попадания: рука выпрямлена, вес перенесён вперёд.', (f) => {
-    choose(f, 0, 'hand');
-    choose(f, 1, 'catchFoot');
-    tick(f, STEP);
-    for (let i = 0; i < 16; i += 1) tick(f, STEP);
+shot('ПЕРЕХВАТ ОТКРЫТ', 'Голубое кольцо — окно перехвата. Видно, что боец рискует прямо сейчас.', (f) => {
+    place(f, 108);
+    drive(f, 6, still, once({ hand: true, pull: true }));
 });
 
-shot('ПЕРЕХВАТ', 'Слева — перехват (тяга на себя), справа — замах ногой.', (f) => {
-    choose(f, 0, 'catchFoot');
-    choose(f, 1, 'foot');
-    tick(f, STEP);
-    for (let i = 0; i < 10; i += 1) tick(f, STEP);
+shot('ДЖАГЛ', 'Перехват подбросил, дальше решает исполнение: рука держит в воздухе, нога выбивает.', (f) => {
+    place(f, 80);
+    drive(f, 14, once({ hand: true }), once({ hand: true, pull: true }));
+    const juggler = (state, side) => {
+        const me = state.fighters[side];
+        const free = me.state === STATE.idle || me.state === STATE.walk;
+        return { ...NEUTRAL, left: true, hand: free };
+    };
+    drive(f, 26, still, juggler);
 });
 
-shot('ДЖАГЛ', 'Перехват подбросил противника; три удара рукой держат тело в воздухе.', (f) => {
-    choose(f, 0, 'catchHand');
-    choose(f, 1, 'hand');
-    tick(f, STEP);
-    for (let i = 0; i < 40; i += 1) {
-        tick(f, STEP);
-        juggleStrike(f, 0, 'hand');
-    }
-});
-
-shot('БРОСОК В ЗЕМЛЮ', 'Бросок роняет тело в рагдолл без джагла: размен без продолжения.', (f) => {
-    choose(f, 0, 'grab');
-    choose(f, 1, 'block');
-    tick(f, STEP);
-    for (let i = 0; i < 34; i += 1) tick(f, STEP);
+shot('БРОСОК', 'Бросок берёт и блок, и перехват — но только вплотную, и разгоняется дольше всех.', (f) => {
+    place(f, 70);
+    drive(f, 24, once({ grab: true }), () => ({ ...NEUTRAL, right: true }));
 });
 
 shot('ПЕРЕЛОМ (рентген)', 'Камера ныряет к той кости, которая приняла импульс. Ролик не нарисован — он вычислен.', (f) => {
+    place(f, 108);
     f.fighters[1].body.bones.ribs.stress = 900;
-    choose(f, 0, 'foot');
-    choose(f, 1, 'catchHand');
-    tick(f, STEP);
-    for (let i = 0; i < 34; i += 1) tick(f, STEP);
+    drive(f, 24, once({ foot: true }), once({ hand: true, pull: true }));
+    drive(f, 30);
 });
 
 shot('ОТОРВАННАЯ РУКА', 'Оторванного звена просто нет в силуэте, а на его месте — культя.', (f) => {
     f.fighters[1].body.bones.arm.state = TORN;
     f.fighters[1].body.bones.ribs.state = BROKEN;
-    for (let i = 0; i < 6; i += 1) tick(f, STEP);
+    place(f, 150);
+    drive(f, 6);
 });
 
 // Картинки едут асинхронно: перерисовываем щуп, когда они приехали.
