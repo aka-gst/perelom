@@ -146,10 +146,15 @@ function telegraph(ctx, f) {
     ctx.lineTo(point.x, point.y);
     ctx.stroke();
     if (live) {
-        ctx.globalAlpha = 0.85;
-        ctx.fillStyle = spec.tell;
+        // Вспышка удара, а не зона поражения: зона щедрее рисунка, и рисовать
+        // её честным размером — значит показывать игроку отладку.
+        const glow = ctx.createRadialGradient(point.x, point.y, 1, point.x, point.y, 18);
+        glow.addColorStop(0, spec.tell);
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = glow;
         ctx.beginPath();
-        ctx.arc(point.x, point.y, spec.reach * 0.55, 0, Math.PI * 2);
+        ctx.arc(point.x, point.y, 18, 0, Math.PI * 2);
         ctx.fill();
     }
     ctx.restore();

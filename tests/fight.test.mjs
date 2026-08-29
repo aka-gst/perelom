@@ -48,12 +48,12 @@ test('дальность берётся из позы: нога достаёт �
     // Ради этого дальность нигде и не записана числом — она следствие
     // анимации, и потому картинка не может соврать про досягаемость.
     const near = createFight({ seed: 3 });
-    place(near, 108);
+    place(near, 140);
     drive(near, 20, once({ hand: true }));
     assert.equal(near.fighters[1].body.hp, 100, 'рука на такой дистанции не достаёт');
 
     const far = createFight({ seed: 3 });
-    place(far, 108);
+    place(far, 140);
     drive(far, 26, once({ foot: true }));
     assert.ok(far.fighters[1].body.hp < 100, 'нога на той же дистанции обязана достать');
 });
@@ -80,11 +80,11 @@ test('перехват своего типа подбрасывает бьюще
 
 test('перехват не того типа наказывается встречным', () => {
     const missed = createFight({ seed: 3 });
-    place(missed, 108);
+    place(missed, 140);
     drive(missed, 24, once({ foot: true }), once({ hand: true, pull: true }));
 
     const plain = createFight({ seed: 3 });
-    place(plain, 108);
+    place(plain, 140);
     drive(plain, 24, once({ foot: true }));
 
     assert.ok(missed.fighters[1].body.hp < plain.fighters[1].body.hp,

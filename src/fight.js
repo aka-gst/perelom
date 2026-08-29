@@ -23,7 +23,8 @@
 import { ACTION, CHIP_SCALE, COUNTER_SCALE, FPS, lengthOf, outcomeOf } from './rules.js';
 import { BONES, applyImpulse, availableActions, makeBody } from './body.js';
 import {
-    applyPose, boneNear, centerOf, createSkeleton, goRagdoll, heightOf, hitBone, step,
+    applyPose, boneNear, centerOf, createSkeleton, distanceToBox, goRagdoll, heightOf,
+    hitBone, hurtBox, step,
 } from './physics.js';
 import { POSES, poseForAttack, walkPose } from './poses.js';
 import { makeRng } from './rng.js';
@@ -54,8 +55,8 @@ export const TUNE = {
     hurtFrames: 14,
     getupFrames: 26,
     downMax: 90,
-    /** Бросок берёт только вплотную — иначе он бьёт защиту слишком дёшево. */
-    grabRange: 76,
+    /** Бросок берёт только вблизи — иначе он бьёт защиту слишком дёшево. */
+    grabRange: 96,
     /** Слипание тел: подойти ближе нельзя, иначе бойцы проходят насквозь. */
     bodyGap: 54,
     /** Замедление кадра в момент попадания. Без него удар не чувствуется. */
@@ -69,7 +70,10 @@ export const TUNE = {
 // достанешь кулаком, улетит вбок — не догонишь. Вбок выбивает только нога,
 // и это её работа: закончить комбо и впечатать тело в край арены.
 const LAUNCH = { vx: 25, vy: -600, spin: 2.4, impulse: 320 };
-const SLAM = { vx: 330, vy: 250, spin: 5.2 };
+// Бросок обязан читаться как бросок: тело уходит по дуге вверх и вперёд и
+// приходит в землю, а не заваливается на месте. Отсюда же и польза от него
+// в нейтралке — им отправляют противника к скале.
+const SLAM = { vx: 620, vy: -380, spin: 8 };
 
 export const other = (side) => (side === 0 ? 1 : 0);
 
@@ -351,13 +355,29 @@ function resolveHits(fight) {
         if (def.state === STATE.down) continue;
         const found = def.state === STATE.launched
             ? airHit(att, def, spec)
-            : hitBone(def.sk, att.sk.points[spec.joint].x, att.sk.points[spec.joint].y, spec.reach);
+            : groundHit(att, def, spec);
         if (!found) continue;
         if (spec.kind === 'grab' && Math.abs(att.x - def.x) > TUNE.grabRange) continue;
 
         att.hitDone = true;
         land_hit(fight, att, def, spec, found);
     }
+}
+
+/**
+ * Попадание по стоящему: кулак или стопа должны дотянуться до коробки тела.
+ *
+ * Кость для перелома при этом ищется отдельно — по ближайшему звену к точке
+ * касания. Поэтому зона поражения честно широкая, а ломается всё равно
+ * ровно то, куда пришёлся удар.
+ */
+function groundHit(att, def, spec) {
+    const from = att.sk.points[spec.joint];
+    if (!from) return null;
+    const box = hurtBox(def.sk);
+    if (distanceToBox(box, from.x, from.y) > spec.reach) return null;
+    const bone = hitBone(def.sk, from.x, from.y, 1e6);
+    return bone ?? { bone: 'ribs', x: from.x, y: from.y, dist: 0 };
 }
 
 /**
@@ -482,6 +502,7 @@ function slam(fight, from, victim, spec) {
     victim.state = STATE.down;
     victim.frame = 0;
     victim.juggleHits = 0;
+    victim.slamPending = true;
     victim.sk.mode = 'ragdoll';
     victim.sk.facing = -from.facing;
     applyPose(victim.sk, POSES.hurt, victim.x, victim.groundY - victim.y);
@@ -521,10 +542,15 @@ function ragdoll(fight, f) {
     }
     if (!atWall) f.wallDone = false;
 
-    if (f.state === STATE.launched && after < 22 && before >= 22) {
+    // Приземление считается и после подброса, и после броска: земля — тоже
+    // удар, и именно она делает бросок болезненным.
+    if (after < 22 && before >= 22 && (f.state === STATE.launched || f.slamPending)) {
+        f.slamPending = false;
         groundImpact(fight, f, (before - after) * FPS);
-        f.state = STATE.down;
-        f.frame = 0;
+        if (f.state === STATE.launched) {
+            f.state = STATE.down;
+            f.frame = 0;
+        }
         return;
     }
     if (f.state === STATE.down && (rest || f.frame > TUNE.downMax)) {

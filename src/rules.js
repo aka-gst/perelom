@@ -33,8 +33,13 @@ export const ACTION = {
         recovery: 11,
         damage: 6,
         impulse: 260,
-        /** Радиус кулака. Сама дальность берётся из позы, а не отсюда. */
-        reach: 19,
+        /**
+         * Радиус зоны удара вокруг кулака. Он заметно больше самого кулака,
+         * и так во всех файтингах: зона всегда щедрее рисунка, иначе бой
+         * превращается в попытки попасть, а не в игру на дистанции.
+         * Сама дальность при этом берётся из позы, а не отсюда.
+         */
+        reach: 34,
         joint: 'handF',
         tell: '#ffd166',
     },
@@ -48,7 +53,7 @@ export const ACTION = {
         recovery: 21,
         damage: 11,
         impulse: 520,
-        reach: 24,
+        reach: 36,
         joint: 'footF',
         tell: '#ff6b35',
     },
@@ -64,7 +69,7 @@ export const ACTION = {
         recovery: 28,
         damage: 14,
         impulse: 700,
-        reach: 24,
+        reach: 34,
         joint: 'handF',
         tell: '#c77dff',
     },

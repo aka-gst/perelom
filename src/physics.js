@@ -168,6 +168,36 @@ function atRest(sk) {
 }
 
 /**
+ * Зона поражения — коробка вокруг тела, а не набор тонких костей.
+ *
+ * Так устроено во всех файтингах, и не от лени: по отрезкам костей удар
+ * проходит только если кулак пришёл почти точно в линию руки или ноги, и
+ * попасть становится неоправданно трудно. Тело — это объём, и мимо него
+ * промахиваются, а не мимо бедренной кости.
+ */
+export function hurtBox(sk, pad = 6) {
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
+    for (const id of POINTS) {
+        const p = sk.points[id];
+        x0 = Math.min(x0, p.x);
+        x1 = Math.max(x1, p.x);
+        y0 = Math.min(y0, p.y);
+        y1 = Math.max(y1, p.y);
+    }
+    return { x0: x0 - pad, x1: x1 + pad, y0: y0 - pad, y1: y1 + pad };
+}
+
+/** Насколько точка не достаёт до коробки. Внутри коробки — ноль. */
+export function distanceToBox(box, x, y) {
+    const dx = Math.max(box.x0 - x, 0, x - box.x1);
+    const dy = Math.max(box.y0 - y, 0, y - box.y1);
+    return Math.hypot(dx, dy);
+}
+
+/**
  * Попадание: ближайшее звено скелета в радиусе от точки, и место касания.
  *
  * Считается расстояние до отрезка, а не до его середины: иначе длинная

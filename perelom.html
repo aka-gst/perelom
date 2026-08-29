@@ -333,8 +333,13 @@ const ACTION = {
         recovery: 11,
         damage: 6,
         impulse: 260,
-        /** Радиус кулака. Сама дальность берётся из позы, а не отсюда. */
-        reach: 19,
+        /**
+         * Радиус зоны удара вокруг кулака. Он заметно больше самого кулака,
+         * и так во всех файтингах: зона всегда щедрее рисунка, иначе бой
+         * превращается в попытки попасть, а не в игру на дистанции.
+         * Сама дальность при этом берётся из позы, а не отсюда.
+         */
+        reach: 34,
         joint: 'handF',
         tell: '#ffd166',
     },
@@ -348,7 +353,7 @@ const ACTION = {
         recovery: 21,
         damage: 11,
         impulse: 520,
-        reach: 24,
+        reach: 36,
         joint: 'footF',
         tell: '#ff6b35',
     },
@@ -364,7 +369,7 @@ const ACTION = {
         recovery: 28,
         damage: 14,
         impulse: 700,
-        reach: 24,
+        reach: 34,
         joint: 'handF',
         tell: '#c77dff',
     },
@@ -780,6 +785,36 @@ function atRest(sk) {
         lowest = Math.max(lowest, p.y);
     }
     return moved < 1.2 && lowest > sk.groundY - 30;
+}
+
+/**
+ * Зона поражения — коробка вокруг тела, а не набор тонких костей.
+ *
+ * Так устроено во всех файтингах, и не от лени: по отрезкам костей удар
+ * проходит только если кулак пришёл почти точно в линию руки или ноги, и
+ * попасть становится неоправданно трудно. Тело — это объём, и мимо него
+ * промахиваются, а не мимо бедренной кости.
+ */
+function hurtBox(sk, pad = 6) {
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
+    for (const id of POINTS) {
+        const p = sk.points[id];
+        x0 = Math.min(x0, p.x);
+        x1 = Math.max(x1, p.x);
+        y0 = Math.min(y0, p.y);
+        y1 = Math.max(y1, p.y);
+    }
+    return { x0: x0 - pad, x1: x1 + pad, y0: y0 - pad, y1: y1 + pad };
+}
+
+/** Насколько точка не достаёт до коробки. Внутри коробки — ноль. */
+function distanceToBox(box, x, y) {
+    const dx = Math.max(box.x0 - x, 0, x - box.x1);
+    const dy = Math.max(box.y0 - y, 0, y - box.y1);
+    return Math.hypot(dx, dy);
 }
 
 /**
@@ -1281,8 +1316,8 @@ const TUNE = {
     hurtFrames: 14,
     getupFrames: 26,
     downMax: 90,
-    /** Бросок берёт только вплотную — иначе он бьёт защиту слишком дёшево. */
-    grabRange: 76,
+    /** Бросок берёт только вблизи — иначе он бьёт защиту слишком дёшево. */
+    grabRange: 96,
     /** Слипание тел: подойти ближе нельзя, иначе бойцы проходят насквозь. */
     bodyGap: 54,
     /** Замедление кадра в момент попадания. Без него удар не чувствуется. */
@@ -1296,7 +1331,10 @@ const TUNE = {
 // достанешь кулаком, улетит вбок — не догонишь. Вбок выбивает только нога,
 // и это её работа: закончить комбо и впечатать тело в край арены.
 const LAUNCH = { vx: 25, vy: -600, spin: 2.4, impulse: 320 };
-const SLAM = { vx: 330, vy: 250, spin: 5.2 };
+// Бросок обязан читаться как бросок: тело уходит по дуге вверх и вперёд и
+// приходит в землю, а не заваливается на месте. Отсюда же и польза от него
+// в нейтралке — им отправляют противника к скале.
+const SLAM = { vx: 620, vy: -380, spin: 8 };
 
 const other = (side) => (side === 0 ? 1 : 0);
 
@@ -1578,13 +1616,29 @@ function resolveHits(fight) {
         if (def.state === STATE.down) continue;
         const found = def.state === STATE.launched
             ? airHit(att, def, spec)
-            : hitBone(def.sk, att.sk.points[spec.joint].x, att.sk.points[spec.joint].y, spec.reach);
+            : groundHit(att, def, spec);
         if (!found) continue;
         if (spec.kind === 'grab' && Math.abs(att.x - def.x) > TUNE.grabRange) continue;
 
         att.hitDone = true;
         land_hit(fight, att, def, spec, found);
     }
+}
+
+/**
+ * Попадание по стоящему: кулак или стопа должны дотянуться до коробки тела.
+ *
+ * Кость для перелома при этом ищется отдельно — по ближайшему звену к точке
+ * касания. Поэтому зона поражения честно широкая, а ломается всё равно
+ * ровно то, куда пришёлся удар.
+ */
+function groundHit(att, def, spec) {
+    const from = att.sk.points[spec.joint];
+    if (!from) return null;
+    const box = hurtBox(def.sk);
+    if (distanceToBox(box, from.x, from.y) > spec.reach) return null;
+    const bone = hitBone(def.sk, from.x, from.y, 1e6);
+    return bone ?? { bone: 'ribs', x: from.x, y: from.y, dist: 0 };
 }
 
 /**
@@ -1709,6 +1763,7 @@ function slam(fight, from, victim, spec) {
     victim.state = STATE.down;
     victim.frame = 0;
     victim.juggleHits = 0;
+    victim.slamPending = true;
     victim.sk.mode = 'ragdoll';
     victim.sk.facing = -from.facing;
     applyPose(victim.sk, POSES.hurt, victim.x, victim.groundY - victim.y);
@@ -1748,10 +1803,15 @@ function ragdoll(fight, f) {
     }
     if (!atWall) f.wallDone = false;
 
-    if (f.state === STATE.launched && after < 22 && before >= 22) {
+    // Приземление считается и после подброса, и после броска: земля — тоже
+    // удар, и именно она делает бросок болезненным.
+    if (after < 22 && before >= 22 && (f.state === STATE.launched || f.slamPending)) {
+        f.slamPending = false;
         groundImpact(fight, f, (before - after) * FPS);
-        f.state = STATE.down;
-        f.frame = 0;
+        if (f.state === STATE.launched) {
+            f.state = STATE.down;
+            f.frame = 0;
+        }
         return;
     }
     if (f.state === STATE.down && (rest || f.frame > TUNE.downMax)) {
@@ -2187,10 +2247,15 @@ function telegraph(ctx, f) {
     ctx.lineTo(point.x, point.y);
     ctx.stroke();
     if (live) {
-        ctx.globalAlpha = 0.85;
-        ctx.fillStyle = spec.tell;
+        // Вспышка удара, а не зона поражения: зона щедрее рисунка, и рисовать
+        // её честным размером — значит показывать игроку отладку.
+        const glow = ctx.createRadialGradient(point.x, point.y, 1, point.x, point.y, 18);
+        glow.addColorStop(0, spec.tell);
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = glow;
         ctx.beginPath();
-        ctx.arc(point.x, point.y, spec.reach * 0.55, 0, Math.PI * 2);
+        ctx.arc(point.x, point.y, 18, 0, Math.PI * 2);
         ctx.fill();
     }
     ctx.restore();
