@@ -13,12 +13,20 @@ import { BONES, BONE_IDS, INTACT, TORN } from './body.js';
 import { PHASE, createFight, choose, juggleStrike, optionsFor, tick } from './fight.js';
 import { chooseAction, juggleChoice, makeMind, remember } from './ai.js';
 import { draw } from './render.js';
+import { loadArenaArt, loadFighterArt } from './sprites.js';
 
 const $ = (id) => document.getElementById(id);
 
 const screens = { menu: $('screen-menu'), learn: $('screen-learn'), fight: $('screen-fight') };
 const canvas = $('arena');
 const ctx = canvas.getContext('2d');
+
+// Графика грузится один раз на сессию: боец и арена переживают перезапуск боя.
+const ART = {
+    zhila: loadFighterArt('zhila'),
+    kostolom: loadFighterArt('kostolom'),
+    arena: loadArenaArt('dusk'),
+};
 
 let fight = null;
 let mind = null;
@@ -44,6 +52,9 @@ $('learn-back').addEventListener('click', () => show('menu'));
 
 function startFight() {
     fight = createFight({ seed: (Math.random() * 1e9) | 0 });
+    fight.fighters[0].art = ART.zhila;
+    fight.fighters[1].art = ART.kostolom;
+    fight.arenaArt = ART.arena;
     mind = makeMind();
     lastPhase = fight.phase;
     aiPicked = false;

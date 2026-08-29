@@ -96,6 +96,22 @@ function readPng(buf) {
     return { ...ihdr, channels: CH, pixels: out };
 }
 
+/** Непрозрачная рамка: где на самом деле лежит рисунок внутри холста. */
+function inkBox(png) {
+    let x0 = png.width;
+    let x1 = -1;
+    for (let y = 0; y < png.height; y += 1) {
+        for (let x = 0; x < png.width; x += 1) {
+            const i = (y * png.width + x) * png.channels + png.channels - 1;
+            if ((png.pixels[i] ?? 255) > 24) {
+                if (x < x0) x0 = x;
+                if (x > x1) x1 = x;
+            }
+        }
+    }
+    return x1 < 0 ? null : { x0, x1 };
+}
+
 const alphaAt = (png, x, y) => {
     if (png.channels !== 4 && png.channels !== 2) return 255;
     const i = (y * png.width + x) * png.channels + png.channels - 1;
@@ -184,7 +200,22 @@ for (const name of present) {
                 fail(`${name}: в суставе (${ax}, ${ay}) прозрачно — кость нарисована не по оси спрайта`);
             }
         }
-        ok(`${name}: ${png.width}×${png.height}, закрашено ${(share * 100).toFixed(0)}%`);
+
+        // Одной проверки «в суставе не прозрачно» мало: первая поставка её
+        // прошла целиком, потому что рисунок занимал весь холст, и суставы
+        // оказались закрашены заодно со всем остальным. Поэтому меряем,
+        // где рисунок начинается и кончается на самом деле.
+        const box = inkBox(png);
+        if (box && spec.anchors?.length === 2) {
+            const [[ax], [bx]] = spec.anchors;
+            const drift = Math.max(Math.abs(box.x0 - ax), Math.abs(box.x1 - bx));
+            if (drift > 24) {
+                fail(`${name}: рисунок лежит от ${box.x0} до ${box.x1}, а суставы объявлены на ${ax} и ${bx}`
+                    + ` — расхождение ${drift} px, крепления лягут мимо`);
+            }
+        }
+        ok(`${name}: ${png.width}×${png.height}, закрашено ${(share * 100).toFixed(0)}%`
+            + (box ? `, рисунок ${box.x0}…${box.x1}` : ''));
     } else {
         const webp = readWebp(buf);
         if (webp.error) { fail(`${name}: ${webp.error}`); continue; }

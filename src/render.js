@@ -11,11 +11,15 @@
 
 import { BONES, BONE_IDS, INTACT, TORN } from './body.js';
 import { PHASE } from './fight.js';
+import { BONE_OF_LAYER, HEAD, LAYERS, PAD, PIECE_BY_ID, SCALE } from './sprites.js';
 
 const SKIN = ['#05060a', '#05060a'];
 const RIM = ['#ff2d55', '#22d3ee'];
 
 /** Толщина звена: туловище толще конечностей, иначе силуэт не читается. */
+/** Голова крепится одной точкой, поэтому её размер задаётся отдельно. */
+const HEAD_SCALE = 0.19;
+
 /** Приближение камеры: в полный рост 960×540 боец занимает четверть кадра. */
 const ZOOM = 1.34;
 
@@ -75,8 +79,21 @@ function backdrop(ctx, fight, w, h, time) {
     ctx.arc(cx, cy, 420, 0, Math.PI * 2);
     ctx.fill();
 
-    ridge(ctx, w, fight.groundY, 128, '#5c0b16', 0.7, time * 0.004);
-    ridge(ctx, w, fight.groundY, 78, '#33060e', 1.3, time * 0.009);
+    const art = fight.arenaArt;
+    if (art?.ready) {
+        // Слои ставятся нижним краем на линию земли и чуть разъезжаются
+        // по горизонтали — этим и держится глубина.
+        const shift = [10, -6, -22];
+        art.order.forEach((id, i) => {
+            const img = art.images[id];
+            const scale = (w * 1.12) / img.naturalWidth;
+            const dh = img.naturalHeight * scale;
+            ctx.drawImage(img, -w * 0.06 + shift[i], fight.groundY - dh, w * 1.12, dh);
+        });
+    } else {
+        ridge(ctx, w, fight.groundY, 128, '#5c0b16', 0.7, time * 0.004);
+        ridge(ctx, w, fight.groundY, 78, '#33060e', 1.3, time * 0.009);
+    }
 
     ctx.fillStyle = '#0c0710';
     ctx.fillRect(0, fight.groundY, w, h - fight.groundY);
@@ -112,13 +129,52 @@ function silhouette(ctx, fighter, fight) {
     ctx.ellipse(mid, fighter.groundY + 3, Math.max(26, Math.abs(feet - mid) + 20), 7, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    if (fighter.art?.ready) {
+        sprites(ctx, fighter);
+    } else {
+        sticks(ctx, fighter);
+        rim(ctx, fighter);
+    }
+    breaks(ctx, fighter);
+}
 
+/** Тело из спрайтов: каждая часть садится своими суставами на суставы скелета. */
+function sprites(ctx, fighter) {
+    const sk = fighter.sk;
+    for (const layer of LAYERS) {
+        if (fighter.body.bones[BONE_OF_LAYER[layer.piece]]?.state === TORN) continue;
+        const img = layer.back ? fighter.art.dark[layer.piece] : fighter.art.images[layer.piece];
+        if (!img) continue;
+        const a = sk.points[layer.a];
+        const b = sk.points[layer.b];
+        const angle = Math.atan2(b.y - a.y, b.x - a.x);
+        ctx.save();
+        const fit = fighter.art.fit[layer.piece];
+        if (!fit) { ctx.restore(); continue; }
+        if (layer.head) {
+            // Голова садится на сустав СЕРЕДИНОЙ, а не низом: сустав головы
+            // в скелете — это её центр, а не основание черепа.
+            ctx.translate(b.x, b.y);
+            ctx.rotate(angle + Math.PI / 2);
+            ctx.scale(HEAD_SCALE, HEAD_SCALE * sk.facing);
+            ctx.drawImage(img, -fit.ax, -fit.y);
+        } else {
+            const scale = Math.hypot(b.x - a.x, b.y - a.y) / (fit.bx - fit.ax);
+            ctx.translate(a.x, a.y);
+            ctx.rotate(angle);
+            ctx.scale(scale, scale * sk.facing);
+            ctx.drawImage(img, -fit.ax, -fit.y);
+        }
+        ctx.restore();
+    }
+}
+
+/** Запасное тело из палок: игра обязана работать и без графики. */
+function sticks(ctx, fighter) {
+    const sk = fighter.sk;
     for (const stick of sk.sticks) {
         if (!stick.bone) continue;
-        const state = body.bones[stick.bone].state;
-        if (state === TORN) continue; // оторванного нет — и это видно сразу
+        if (fighter.body.bones[stick.bone].state === TORN) continue;
         const a = sk.points[stick.a];
         const b = sk.points[stick.b];
         ctx.strokeStyle = SKIN[fighter.side];
@@ -128,17 +184,12 @@ function silhouette(ctx, fighter, fight) {
         ctx.lineTo(b.x, b.y);
         ctx.stroke();
     }
-
-    // Голова — не палка, а объём: без неё силуэт читается как вешалка.
-    if (body.bones.skull.state !== TORN) {
+    if (fighter.body.bones.skull.state !== TORN) {
         ctx.fillStyle = SKIN[fighter.side];
         ctx.beginPath();
         ctx.arc(sk.points.head.x, sk.points.head.y, 15, 0, Math.PI * 2);
         ctx.fill();
     }
-
-    rim(ctx, fighter);
-    breaks(ctx, fighter);
 }
 
 /** Контровой свет: два чёрных силуэта иначе неразличимы. */

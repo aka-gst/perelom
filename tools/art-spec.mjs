@@ -10,33 +10,8 @@
  * бывают с двойной плотностью, и камера при переломе ныряет ещё вчетверо.
  */
 
-/** Мировые пиксели → пиксели спрайта. */
-export const SCALE = 4;
-/** Поле от левого края спрайта до сустава A. Одинаковое у всех частей. */
-export const PAD = 16;
-
-/**
- * Части тела. `bone` — длина кости в спрайте; сустав A всегда в (PAD, H/2),
- * сустав B — в (PAD + bone, H/2). Всё, что торчит за B (кулак, стопа),
- * живёт в правом вылете.
- */
-export const PIECES = [
-    { id: 'torso-low', bone: 120, w: 152, h: 144, ru: 'корпус низ', stick: 'таз → грудь', over: 'живот и таз' },
-    { id: 'torso-up', bone: 88, w: 120, h: 128, ru: 'корпус верх', stick: 'грудь → шея', over: 'грудная клетка и плечи' },
-    { id: 'neck', bone: 72, w: 104, h: 96, ru: 'шея', stick: 'шея → голова', over: 'шея и трапеция' },
-    { id: 'arm-upper', bone: 136, w: 168, h: 80, ru: 'плечо', stick: 'плечо → локоть', over: 'бицепс и трицепс' },
-    { id: 'arm-fore', bone: 128, w: 224, h: 128, ru: 'предплечье с кистью', stick: 'локоть → запястье', over: 'кулак за суставом B' },
-    { id: 'leg-thigh', bone: 168, w: 200, h: 88, ru: 'бедро', stick: 'таз → колено', over: 'мышца бедра' },
-    { id: 'leg-shin', bone: 164, w: 260, h: 136, ru: 'голень со стопой', stick: 'колено → щиколотка', over: 'стопа за суставом B' },
-];
-
-/** Голова — единственная часть с одной точкой крепления, а не с двумя. */
-export const HEAD = { id: 'head', w: 136, h: 136, anchor: [68, 128], ru: 'голова в профиль' };
-
-export const anchorsOf = (piece) => ({
-    a: [PAD, piece.h / 2],
-    b: [PAD + piece.bone, piece.h / 2],
-});
+export { SCALE, PAD, PIECES, HEAD, anchorsOf } from '../src/sprites.js';
+import { PIECES, HEAD, anchorsOf } from '../src/sprites.js';
 
 export const FIGHTERS = [
     { id: 'zhila', ru: 'ЖИЛА', rim: '#ff2d55' },
@@ -74,7 +49,8 @@ export function manifest() {
         }
     }
 
-    files.push(webp('menu-bg.webp', 1920, 1080, { group: 'экраны', wave: 1 }));
+    // Фон меню закрывает экран целиком, прозрачность ему не нужна.
+    files.push(webp('menu-bg.webp', 1920, 1080, { group: 'экраны', wave: 1, opaque: true }));
 
     for (const fighter of FIGHTERS) {
         for (const limb of ['arm', 'leg']) {

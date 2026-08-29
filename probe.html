@@ -22,9 +22,13 @@ import { draw } from './src/render.js';
 import { BROKEN, TORN } from './src/body.js';
 import { POSES } from './src/poses.js';
 import { STICKS, createSkeleton } from './src/physics.js';
+import { loadArenaArt, loadFighterArt } from './src/sprites.js';
+
+const ART = { zhila: loadFighterArt('zhila'), kostolom: loadFighterArt('kostolom'), arena: loadArenaArt('dusk') };
 
 const STEP = 1 / 60;
 const out = document.getElementById('out');
+const redraws = [];
 
 let index = 0;
 
@@ -38,7 +42,11 @@ function shot(title, note, build) {
     const p = document.createElement('p');
     p.textContent = note;
     out.append(h, canvas, p);
+    redraws.push(() => { const f = createFight({ seed: 4 }); f.fighters[0].art = ART.zhila; f.fighters[1].art = ART.kostolom; f.arenaArt = ART.arena; build(f); draw(canvas.getContext('2d'), f, 960, 540, 1); });
     const fight = createFight({ seed: 4 });
+    fight.fighters[0].art = ART.zhila;
+    fight.fighters[1].art = ART.kostolom;
+    fight.arenaArt = ART.arena;
     build(fight);
     draw(canvas.getContext('2d'), fight, 960, 540, 1);
     return fight;
@@ -151,6 +159,10 @@ shot('ОТОРВАННАЯ РУКА', 'Оторванного звена про�
     f.fighters[1].body.bones.ribs.state = BROKEN;
     for (let i = 0; i < 6; i += 1) tick(f, STEP);
 });
+
+// Картинки едут асинхронно: перерисовываем щуп, когда они приехали.
+setTimeout(() => { for (const again of redraws) again(); }, 700);
+setTimeout(() => { for (const again of redraws) again(); }, 2000);
 </script>
 </body>
 </html>

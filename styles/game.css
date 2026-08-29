@@ -40,6 +40,12 @@ body { display: flex; }
 /* ─────────────── меню и обучение ─────────────── */
 
 .screen--menu {
+    /* Фон рисованный, но игра обязана открываться и без него: под
+       картинкой лежит та же тёмная заливка, что и всюду. */
+    background:
+        linear-gradient(180deg, rgba(5,6,10,0.82) 0%, rgba(5,6,10,0.45) 45%, rgba(5,6,10,0.9) 100%),
+        url('../assets/art/menu-bg.webp') center / cover no-repeat,
+        #05060a;
     justify-content: center;
     align-items: center;
     text-align: center;
