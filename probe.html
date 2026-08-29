@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>ПЕРЕЛОМ — щуп</title>
+<style>
+  body { background:#0a0709; color:#f4e9e7; font:13px ui-monospace,monospace; margin:0; padding:16px; }
+  h2 { font-size:12px; letter-spacing:.2em; color:#ff2d55; margin:18px 0 6px; font-weight:600; }
+  canvas { width:100%; max-width:760px; height:auto; display:block; background:#05060a; }
+  p { color:#8c8082; margin:4px 0 0; max-width:76ch; line-height:1.5; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script type="module">
+/**
+ * Щуп: рисует отдельные моменты боя без игрового цикла.
+ * Только для разработки — на сервер не едет.
+ */
+import { createFight, choose, juggleStrike, tick, PHASE } from './src/fight.js';
+import { draw } from './src/render.js';
+import { BROKEN, TORN } from './src/body.js';
+
+const STEP = 1 / 60;
+const out = document.getElementById('out');
+
+let index = 0;
+
+function shot(title, note, build) {
+    const h = document.createElement('h2');
+    h.textContent = title;
+    const canvas = document.createElement('canvas');
+    canvas.id = `shot-${index++}`;
+    canvas.width = 960;
+    canvas.height = 540;
+    const p = document.createElement('p');
+    p.textContent = note;
+    out.append(h, canvas, p);
+    const fight = createFight({ seed: 4 });
+    build(fight);
+    draw(canvas.getContext('2d'), fight, 960, 540, 1);
+    return fight;
+}
+
+shot('СТОЙКА', 'Оба в чтении: силуэты, контровой свет, тень под ногами.', (f) => {
+    for (let i = 0; i < 6; i += 1) tick(f, STEP);
+});
+
+shot('УДАР НОГОЙ', 'Бьющий анимирован по кадрам, а не физикой: удар должен быть читаемым.', (f) => {
+    choose(f, 0, 'foot');
+    choose(f, 1, 'block');
+    tick(f, STEP);
+    for (let i = 0; i < 20; i += 1) tick(f, STEP);
+});
+
+shot('ДЖАГЛ', 'Перехват подбросил противника; три удара рукой держат тело в воздухе.', (f) => {
+    choose(f, 0, 'catchHand');
+    choose(f, 1, 'hand');
+    tick(f, STEP);
+    for (let i = 0; i < 40; i += 1) {
+        tick(f, STEP);
+        juggleStrike(f, 0, 'hand');
+    }
+});
+
+shot('БРОСОК В ЗЕМЛЮ', 'Бросок роняет тело в рагдолл без джагла: размен без продолжения.', (f) => {
+    choose(f, 0, 'grab');
+    choose(f, 1, 'block');
+    tick(f, STEP);
+    for (let i = 0; i < 34; i += 1) tick(f, STEP);
+});
+
+shot('ПЕРЕЛОМ (рентген)', 'Камера ныряет к той кости, которая приняла импульс. Ролик не нарисован — он вычислен.', (f) => {
+    f.fighters[1].body.bones.ribs.stress = 900;
+    choose(f, 0, 'foot');
+    choose(f, 1, 'catchHand');
+    tick(f, STEP);
+    for (let i = 0; i < 34; i += 1) tick(f, STEP);
+});
+
+shot('ОТОРВАННАЯ РУКА', 'Оторванного звена просто нет в силуэте, а на его месте — культя.', (f) => {
+    f.fighters[1].body.bones.arm.state = TORN;
+    f.fighters[1].body.bones.ribs.state = BROKEN;
+    for (let i = 0; i < 6; i += 1) tick(f, STEP);
+});
+</script>
+</body>
+</html>

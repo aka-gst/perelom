@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>ПЕРЕЛОМ — файтинг на перехватах</title>
+<meta name="description" content="Файтинг, в котором перехват подбрасывает противника, а сломанная кость вычёркивает действие из треугольника.">
+<link rel="stylesheet" href="./styles/game.css">
+</head>
+<body>
+
+<main class="app">
+
+    <!-- ─────────────── МЕНЮ ─────────────── -->
+    <section class="screen screen--menu" id="screen-menu">
+        <h1 class="title">ПЕРЕЛОМ</h1>
+        <p class="tagline">Рука · Нога · Бросок</p>
+        <p class="pitch">
+            Перехват — это лаунчер. Выиграл чтение — противник в воздухе,
+            и дальше решает только твоё исполнение.<br>
+            Сломанная кость вычёркивает действие из треугольника. Навсегда.
+        </p>
+        <div class="menu-actions">
+            <button class="mbtn mbtn--primary" id="go-fight">БОЙ</button>
+            <button class="mbtn" id="go-learn">КАК ЭТО РАБОТАЕТ</button>
+        </div>
+        <p class="alpha">ВЕРТИКАЛЬНЫЙ СРЕЗ</p>
+    </section>
+
+    <!-- ─────────────── ОБУЧЕНИЕ ─────────────── -->
+    <section class="screen screen--menu" id="screen-learn" hidden>
+        <h2 class="title title--sm">ТРЕУГОЛЬНИК</h2>
+        <ul class="rules">
+            <li><b>Удар</b> опережает <b>бросок</b>. Рука быстрее ноги и перебивает её.</li>
+            <li><b>Бросок</b> берёт и <b>блок</b>, и <b>перехват</b>: защита заточена под удары.</li>
+            <li><b>Перехват</b> ловит <b>удар</b> — но надо угадать тип. Угадал: противник в воздухе. Не угадал: контрхит ×1.6.</li>
+        </ul>
+        <h2 class="title title--sm">ДВА СЛОЯ</h2>
+        <ul class="rules">
+            <li><b>Чтение</b> — оба выбирают вслепую, полторы секунды.</li>
+            <li><b>Джагл</b> — пока тело в воздухе, читать нечего. Рука держит в воздухе, нога выбивает и добивает.</li>
+            <li>Каждый следующий удар в джагле слабее. Комбо не бесконечно.</li>
+        </ul>
+        <h2 class="title title--sm">ПЕРЕЛОМЫ</h2>
+        <ul class="rules">
+            <li>Сломанная <b>рука</b> — нет удара рукой и перехвата руки. Сломанная <b>нога</b> — то же самое.</li>
+            <li><b>Рёбра</b> и <b>позвоночник</b> не отнимают действие, но весь урон растёт.</li>
+            <li>Ломать вторую по счёту — вдвое легче. Руку и ногу можно <b>оторвать</b>.</li>
+        </ul>
+        <button class="mbtn mbtn--primary" id="learn-back">НАЗАД</button>
+    </section>
+
+    <!-- ─────────────── БОЙ ─────────────── -->
+    <section class="screen screen--fight" id="screen-fight" hidden>
+
+        <header class="bars">
+            <div class="bar bar--left">
+                <div class="bar-name" id="name-0">ТЫ</div>
+                <div class="bar-track"><i class="bar-fill bar-fill--you" id="hp-0"></i></div>
+                <div class="bar-guard" id="guard-0"></div>
+                <div class="bar-bones" id="bones-0"></div>
+            </div>
+            <div class="clock">
+                <div class="clock-phase" id="phase">ЧТЕНИЕ</div>
+                <div class="clock-track"><i class="clock-fill" id="clock"></i></div>
+            </div>
+            <div class="bar bar--right">
+                <div class="bar-name" id="name-1">ПРОТИВНИК</div>
+                <div class="bar-track"><i class="bar-fill bar-fill--foe" id="hp-1"></i></div>
+                <div class="bar-guard" id="guard-1"></div>
+                <div class="bar-bones" id="bones-1"></div>
+            </div>
+        </header>
+
+        <div class="arena">
+            <canvas id="arena" width="960" height="540"></canvas>
+            <div class="combo" id="combo" hidden><b id="combo-n">0</b><span>ПОПАДАНИЙ</span></div>
+            <div class="verdict" id="verdict" hidden></div>
+        </div>
+
+        <p class="log" id="log">Выбирай вслепую. Он выбирает одновременно.</p>
+
+        <div class="pad" id="pad">
+            <button class="key" data-button="hand">
+                <span class="key-name">РУКА</span>
+                <span class="key-hint"><i>↑ удар</i><i>↓ перехват</i></span>
+            </button>
+            <button class="key" data-button="foot">
+                <span class="key-name">НОГА</span>
+                <span class="key-hint"><i>↑ удар</i><i>↓ перехват</i></span>
+            </button>
+            <button class="key" data-button="grab">
+                <span class="key-name">БРОСОК</span>
+                <span class="key-hint"><i>↑ бросок</i><i>↓ блок</i></span>
+            </button>
+        </div>
+
+        <p class="keys">Клавиши: <b>J K L</b> — толчок · с <b>Shift</b> или <b>↓</b> — тяга</p>
+    </section>
+
+</main>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
