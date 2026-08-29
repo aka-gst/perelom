@@ -20,6 +20,8 @@
 import { createFight, choose, juggleStrike, tick, PHASE } from './src/fight.js';
 import { draw } from './src/render.js';
 import { BROKEN, TORN } from './src/body.js';
+import { POSES } from './src/poses.js';
+import { STICKS, createSkeleton } from './src/physics.js';
 
 const STEP = 1 / 60;
 const out = document.getElementById('out');
@@ -42,6 +44,58 @@ function shot(title, note, build) {
     return fight;
 }
 
+/** Лист всех поз: по нему сверяется заказ на графику. */
+function poseSheet(names, index) {
+    const h = document.createElement('h2');
+    h.textContent = `ПОЗЫ ${index + 1} — эталон для заказа графики`;
+    const canvas = document.createElement('canvas');
+    canvas.id = `shot-poses-${index}`;
+    canvas.width = 960;
+    canvas.height = 480;
+    const p = document.createElement('p');
+    p.textContent = 'Каждая кость одной длины во всех позах: рука 66, нога 84, рост 163. Точками отмечены суставы — места крепления спрайтов.';
+    out.append(h, canvas, p);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#141018';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const stepX = canvas.width / names.length;
+    const groundY = 430;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const WIDTH = { spine: 30, ribs: 26, skull: 18, arm: 13, leg: 16 };
+    names.forEach((name, i) => {
+        const x = stepX * (i + 0.5);
+        const sk = createSkeleton(POSES[name], x, groundY, 1);
+        ctx.strokeStyle = '#0a0a10';
+        for (const stick of sk.sticks) {
+            if (!stick.bone) continue;
+            ctx.lineWidth = WIDTH[stick.bone];
+            ctx.beginPath();
+            ctx.moveTo(sk.points[stick.a].x, sk.points[stick.a].y);
+            ctx.lineTo(sk.points[stick.b].x, sk.points[stick.b].y);
+            ctx.stroke();
+        }
+        ctx.fillStyle = '#0a0a10';
+        ctx.beginPath();
+        ctx.arc(sk.points.head.x, sk.points.head.y, 15, 0, Math.PI * 2);
+        ctx.fill();
+        // Суставы точками — по ним художник видит, где крепления спрайтов.
+        ctx.fillStyle = '#ff2d55';
+        for (const id of Object.keys(sk.points)) {
+            ctx.beginPath();
+            ctx.arc(sk.points[id].x, sk.points[id].y, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.fillStyle = '#8c8082';
+        ctx.font = '600 17px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(name, x, groundY + 28);
+    });
+}
+
+const POSE_NAMES = Object.keys(POSES);
+for (let i = 0; i * 4 < POSE_NAMES.length; i += 1) poseSheet(POSE_NAMES.slice(i * 4, i * 4 + 4), i);
+
 shot('СТОЙКА', 'Оба в чтении: силуэты, контровой свет, тень под ногами.', (f) => {
     for (let i = 0; i < 6; i += 1) tick(f, STEP);
 });
@@ -51,6 +105,20 @@ shot('УДАР НОГОЙ', 'Бьющий анимирован по кадрам
     choose(f, 1, 'block');
     tick(f, STEP);
     for (let i = 0; i < 20; i += 1) tick(f, STEP);
+});
+
+shot('УДАР РУКОЙ В КОНТАКТ', 'Кадр попадания: рука выпрямлена, вес перенесён вперёд.', (f) => {
+    choose(f, 0, 'hand');
+    choose(f, 1, 'catchFoot');
+    tick(f, STEP);
+    for (let i = 0; i < 16; i += 1) tick(f, STEP);
+});
+
+shot('ПЕРЕХВАТ', 'Слева — перехват (тяга на себя), справа — замах ногой.', (f) => {
+    choose(f, 0, 'catchFoot');
+    choose(f, 1, 'foot');
+    tick(f, STEP);
+    for (let i = 0; i < 10; i += 1) tick(f, STEP);
 });
 
 shot('ДЖАГЛ', 'Перехват подбросил противника; три удара рукой держат тело в воздухе.', (f) => {
