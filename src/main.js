@@ -9,9 +9,9 @@
  * его нечем наказывать, кроме броска, и нейтралка вырождается.
  */
 
-import { ACTION } from './rules.js';
+import { ACTION, FPS } from './rules.js';
 import { BONES, BONE_IDS, INTACT, TORN } from './body.js';
-import { STATE, createFight, optionsFor, tick } from './fight.js';
+import { STATE, createFight, optionsFor, stepFrame, tick } from './fight.js';
 import { controller, makeMind } from './ai.js';
 import { draw } from './render.js';
 import { loadArenaArt, loadFighterArt } from './sprites.js';
@@ -237,6 +237,61 @@ function verdict() {
     node.append(h, p, again, back);
     node.hidden = false;
 }
+
+/**
+ * Отладочный доступ.
+ *
+ * Игра идёт на requestAnimationFrame, а он замирает в скрытой панели
+ * предпросмотра — проверено замером: ноль кадров за 600 мс. Значит ни снять
+ * кадр, ни проверить правку в балансе через обычный цикл нельзя. `advance`
+ * прогоняет столько игровых кадров, сколько попросили, и рисует результат.
+ *
+ * **Ввод идёт общим путём** — через тот же `playerInput`, что и клавиатура.
+ * Хук, который строит намерение по-своему, проверяет не игру, а сам себя.
+ */
+globalThis.PERELOM = {
+    get fight() { return fight; },
+    start: startFight,
+    show,
+    /** Нажать кнопку так, как её нажал бы игрок: попадёт в очередь нажатий. */
+    press(name) {
+        if (name in pressed) pressed[name] = true;
+    },
+    /** Зажать или отпустить направление. */
+    hold(name, on = true) {
+        if (on) held.add(name);
+        else held.delete(name);
+    },
+    advance(seconds = 1) {
+        if (!fight) return null;
+        if (!aiControl) aiControl = controller(mind, makeRng(7));
+        const steps = Math.max(1, Math.round(seconds * FPS));
+        for (let i = 0; i < steps; i += 1) stepFrame(fight, [playerInput, aiControl]);
+        paint();
+        hud();
+        return this.state();
+    },
+    /** Короткая сводка боя — по ней и проверяют, что произошло. */
+    state() {
+        if (!fight) return null;
+        const line = (f) => ({
+            state: f.state,
+            action: f.action,
+            hp: Math.round(f.body.hp),
+            x: Math.round(f.x),
+            guard: f.body.guard,
+            broken: BONE_IDS.filter((id) => f.body.bones[id].state !== INTACT),
+        });
+        return {
+            frame: fight.frame,
+            gap: Math.round(Math.abs(fight.fighters[0].x - fight.fighters[1].x)),
+            banner: fight.banner?.text ?? null,
+            you: line(fight.fighters[0]),
+            foe: line(fight.fighters[1]),
+            log: fight.log.slice(-3),
+        };
+    },
+};
 
 show('menu');
 requestAnimationFrame(frame);
