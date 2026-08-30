@@ -55,8 +55,12 @@ export const TUNE = {
     hurtFrames: 14,
     getupFrames: 26,
     downMax: 90,
-    /** Бросок берёт только вблизи — иначе он бьёт защиту слишком дёшево. */
-    grabRange: 96,
+    /**
+     * Бросок берёт только вблизи — иначе он бьёт защиту слишком дёшево.
+     * Считается в момент касания, поэтому с шагом в удар начинать можно
+     * примерно на треть дальше этого числа.
+     */
+    grabRange: 70,
     /** Слипание тел: подойти ближе нельзя, иначе бойцы проходят насквозь. */
     bodyGap: 54,
     /** Замедление кадра в момент попадания. Без него удар не чувствуется. */
@@ -93,9 +97,13 @@ export function createFight({ seed = 1, groundY = 430, centerX = 480, wall = 330
         winner: null,
         over: false,
         bestJuggle: 0,
+        /** Крупная надпись поверх боя: что сейчас произошло. */
+        banner: null,
+        /** Всплывающие цифры урона. */
+        numbers: [],
         fighters: [
-            makeFighter(0, 'ТЫ', centerX - 95, 1, groundY, centerX, wall),
-            makeFighter(1, 'КОСТОЛОМ', centerX + 95, -1, groundY, centerX, wall),
+            makeFighter(0, 'ТЫ', centerX - 70, 1, groundY, centerX, wall),
+            makeFighter(1, 'КОСТОЛОМ', centerX + 70, -1, groundY, centerX, wall),
         ],
     };
     for (const f of fight.fighters) poseOf(f);
@@ -151,6 +159,15 @@ export function tick(fight, dt, controllers) {
 export function stepFrame(fight, controllers) {
     fight.frame += 1;
     fight.shake *= 0.86;
+    if (fight.banner) {
+        fight.banner.frames -= 1;
+        if (fight.banner.frames <= 0) fight.banner = null;
+    }
+    for (const number of fight.numbers) {
+        number.life -= 1;
+        number.y -= 0.7;
+    }
+    fight.numbers = fight.numbers.filter((n) => n.life > 0);
     for (const f of fight.fighters) {
         f.flash = Math.max(0, f.flash - 1);
         decayBlood(f);
@@ -272,6 +289,16 @@ function airFrame(fight, f, input) {
 
 function attackFrame(fight, f, input) {
     const spec = ACTION[f.action];
+    // Шаг в удар. Начинается вместе с выносом конечности, а не с первого
+    // кадра замаха: сначала боец грузится, потом переносит вес.
+    if (spec.lunge) {
+        const from = Math.max(1, Math.round(spec.startup * 0.55));
+        const until = spec.startup + spec.active;
+        if (f.frame >= from && f.frame < until) {
+            f.x += (spec.lunge / (until - from)) * f.facing;
+            clampX(f);
+        }
+    }
     if (f.airAttack) {
         f.x += f.vx;
         f.y -= f.vy;
@@ -423,6 +450,7 @@ function land_hit(fight, att, def, spec, found) {
     if (outcome === 'miss') return;
 
     if (outcome === 'launch') {
+        banner(fight, 'ПЕРЕХВАТ', '#22d3ee');
         note(fight, `${def.name} перехватывает ${spec.name.toLowerCase()}`);
         enter(def, STATE.idle);
         launch(fight, def, att);
@@ -438,6 +466,7 @@ function land_hit(fight, att, def, spec, found) {
         fight.shake = 4;
         if (def.body.guard <= 0) {
             def.body.guard = 3;
+            banner(fight, 'ГАРД СЛОМАН', '#ffd166');
             note(fight, `${def.name}: гард сломан`);
             launch(fight, att, def);
         }
@@ -445,6 +474,7 @@ function land_hit(fight, att, def, spec, found) {
     }
 
     if (outcome === 'throw') {
+        banner(fight, 'БРОСОК', '#c77dff');
         note(fight, `${att.name} бросает`);
         slam(fight, att, def, spec);
         return;
@@ -456,6 +486,8 @@ function land_hit(fight, att, def, spec, found) {
     fight.freeze = juggling ? TUNE.hitstop.juggle : TUNE.hitstop[outcome] ?? TUNE.hitstop.hit;
     fight.shake = juggling ? 6 : outcome === 'counter' ? 13 : 8;
     def.flash = 8;
+    number(fight, found, result.damage);
+    if (outcome === 'counter') banner(fight, 'ВСТРЕЧНЫЙ', '#ff6b35');
     splash(def, found, 6 + spec.impulse / 46);
 
     if (juggling) {
@@ -535,6 +567,8 @@ function ragdoll(fight, f) {
         const impulse = Math.min(760, speedX * 95);
         const result = applyImpulse(f.body, bone, impulse, impulse / 30);
         fight.shake = 16;
+        banner(fight, 'О СКАЛУ', '#ff2436');
+        number(fight, point, result.damage);
         splash(f, point, 20);
         note(fight, `о скалу: ${BONES[bone].name.toLowerCase()}`);
         if (result.broke) startXray(fight, f, bone, result);
@@ -571,6 +605,7 @@ function groundImpact(fight, f, fallSpeed) {
     const impulse = Math.min(700, fallSpeed * 0.5);
     const result = applyImpulse(f.body, bone, impulse, impulse / 28);
     fight.shake = 11;
+    number(fight, lowest, result.damage);
     splash(f, lowest, 14);
     if (result.broke) startXray(fight, f, bone, result);
     checkDeath(fight, f);
@@ -665,6 +700,17 @@ function checkDeath(fight, f) {
     fight.winner = other(f.side);
     note(fight, `${fight.fighters[fight.winner].name} побеждает`);
     if (!fight.xrayFrames) fight.over = true;
+}
+
+/** Назвать событие словом поверх боя. Мелкий лог внизу для этого не годится. */
+function banner(fight, text, tone = '#ff2436') {
+    fight.banner = { text, tone, frames: 54 };
+}
+
+/** Цифра урона у места попадания: сразу видно, что удар не одинаков. */
+function number(fight, at, value) {
+    if (value < 1) return;
+    fight.numbers.push({ x: at.x, y: at.y - 20, value: Math.round(value), life: 48 });
 }
 
 function note(fight, text) {

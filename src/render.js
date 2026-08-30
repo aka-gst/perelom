@@ -53,9 +53,54 @@ export function draw(ctx, fight, w, h, time) {
     for (const fighter of fight.fighters) if (fighter.state === STATE.launched) juggleGlow(ctx, fighter);
     ctx.restore();
 
+    numbers(ctx, fight, cam, w, h);
     ctx.restore();
 
+    if (fight.banner) bannerOf(ctx, fight, w, h);
     if (fight.xray) xray(ctx, fight, w, h);
+}
+
+/**
+ * Крупная надпись о том, что произошло.
+ *
+ * Взято у Mortal Kombat: он называет словом каждое заметное событие —
+ * KOUNTER, PUNISH, GETUP PUNISH. Без этого игрок видит, что урон разный, но
+ * не понимает почему, а у нас разница между обычным попаданием и встречным
+ * — это вся суть перехвата.
+ */
+function bannerOf(ctx, fight, w, h) {
+    const b = fight.banner;
+    const k = Math.min(1, b.frames / 12);
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.textAlign = 'center';
+    ctx.font = '700 44px ui-monospace, monospace';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(5,6,10,0.9)';
+    ctx.strokeText(b.text, w / 2, h * 0.24);
+    ctx.fillStyle = b.tone;
+    ctx.fillText(b.text, w / 2, h * 0.24);
+    ctx.restore();
+}
+
+/** Цифры урона у места попадания — тоже из Mortal Kombat. */
+function numbers(ctx, fight, cam, w, h) {
+    if (!fight.numbers.length) return;
+    ctx.save();
+    ctx.translate(w / 2, h * 0.62);
+    ctx.scale(cam.zoom, cam.zoom);
+    ctx.translate(-cam.x, -cam.y);
+    ctx.textAlign = 'center';
+    ctx.font = '700 17px ui-monospace, monospace';
+    ctx.lineWidth = 3;
+    for (const n of fight.numbers) {
+        ctx.globalAlpha = Math.min(1, n.life / 16);
+        ctx.strokeStyle = 'rgba(5,6,10,0.85)';
+        ctx.strokeText(String(n.value), n.x, n.y);
+        ctx.fillStyle = '#ffd166';
+        ctx.fillText(String(n.value), n.x, n.y);
+    }
+    ctx.restore();
 }
 
 /**
@@ -67,8 +112,10 @@ function cameraOf(fight, w, h) {
     const [a, b] = fight.fighters;
     const ax = a.sk.mode === 'ragdoll' ? centerOf(a.sk).x : a.x;
     const bx = b.sk.mode === 'ragdoll' ? centerOf(b.sk).x : b.x;
-    const span = Math.abs(ax - bx) + 340;
-    const zoom = Math.max(1.0, Math.min(2.0, w / span));
+    // Ближе, чем было: в Tekken и SF6 боец занимает больше половины высоты
+    // кадра, а у нас занимал две пятых, и от этого бой казался мелким.
+    const span = Math.abs(ax - bx) + 260;
+    const zoom = Math.max(1.3, Math.min(2.4, w / span));
     const half = w / (2 * zoom);
     const left = fight.centerX - fight.wall;
     const right = fight.centerX + fight.wall;
