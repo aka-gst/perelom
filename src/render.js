@@ -51,6 +51,7 @@ export function draw(ctx, fight, w, h, time) {
     for (const fighter of fight.fighters) silhouette(ctx, fighter, fight);
     for (const fighter of fight.fighters) telegraph(ctx, fighter);
     for (const fighter of fight.fighters) if (fighter.state === STATE.launched) juggleGlow(ctx, fighter);
+    sparks(ctx, fight);
     ctx.restore();
 
     numbers(ctx, fight, cam, w, h);
@@ -80,6 +81,65 @@ function bannerOf(ctx, fight, w, h) {
     ctx.strokeText(b.text, w / 2, h * 0.24);
     ctx.fillStyle = b.tone;
     ctx.fillText(b.text, w / 2, h * 0.24);
+    ctx.restore();
+}
+
+/**
+ * Вспышка в точке касания — главный сигнал «удар был».
+ *
+ * Три вида различаются намеренно и различаются формой, а не только цветом:
+ * попадание — звезда лучами наружу, встречный — та же звезда крупнее и
+ * краснее, блок — дуга поперёк удара, будто щит. По ней должно быть видно,
+ * прошло или закрыли, не читая ни полосок, ни лога.
+ */
+const SPARK = {
+    hit: { tone: '#fff3c4', rays: 7, reach: 30 },
+    counter: { tone: '#ff8a3d', rays: 9, reach: 44 },
+    block: { tone: '#7dd3fc', rays: 0, reach: 26 },
+};
+
+function sparks(ctx, fight) {
+    if (!fight.sparks.length) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (const s of fight.sparks) {
+        const spec = SPARK[s.kind] ?? SPARK.hit;
+        const k = s.life / (s.kind === 'block' ? 10 : 13);
+        const reach = spec.reach * s.size * (1.3 - k * 0.5);
+        ctx.globalAlpha = Math.min(1, k * 1.6);
+
+        if (spec.rays) {
+            ctx.strokeStyle = spec.tone;
+            ctx.lineWidth = 3.5 * s.size * k;
+            ctx.beginPath();
+            for (let i = 0; i < spec.rays; i += 1) {
+                const angle = (i / spec.rays) * Math.PI * 2 + 0.4;
+                const inner = reach * 0.28;
+                ctx.moveTo(s.x + Math.cos(angle) * inner, s.y + Math.sin(angle) * inner);
+                ctx.lineTo(s.x + Math.cos(angle) * reach, s.y + Math.sin(angle) * reach);
+            }
+            ctx.stroke();
+            const core = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, reach * 0.55);
+            core.addColorStop(0, '#ffffff');
+            core.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = core;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, reach * 0.55, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Блок: дуга поперёк удара, а не звезда. Форма важнее цвета —
+            // по ней видно «закрыли», даже когда не разобрал оттенок.
+            ctx.strokeStyle = spec.tone;
+            ctx.lineWidth = 5 * k;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, reach, -0.9, 0.9);
+            ctx.stroke();
+            ctx.lineWidth = 2 * k;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, reach * 1.35, -0.6, 0.6);
+            ctx.stroke();
+        }
+    }
     ctx.restore();
 }
 
@@ -282,12 +342,23 @@ function silhouette(ctx, fighter, fight) {
     ctx.ellipse(mid, fighter.groundY + 3, Math.max(26, Math.abs(feet - mid) + 20), 7, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    /*
+     * Подсветка на попадании.
+     *
+     * Поле `flash` выставлялось с самого начала и не рисовалось нигде — из-за
+     * этого боец при ударе не менялся вовсе, и попадание читалось только по
+     * полоске здоровья. Первый живой отзыв так и звучал: «слабо понятно, что
+     * удар был».
+     */
+    const lit = fighter.flash > 0;
+    if (lit) ctx.filter = `brightness(${1 + fighter.flash * 0.26}) saturate(0.5)`;
     if (fighter.art?.ready) {
         sprites(ctx, fighter);
     } else {
         sticks(ctx, fighter);
         rim(ctx, fighter);
     }
+    if (lit) ctx.filter = 'none';
     breaks(ctx, fighter);
 }
 

@@ -32,6 +32,7 @@ const NEUTRAL = {
     dashLeft: false, dashRight: false,
 };
 const still = () => ({ ...NEUTRAL });
+const input = (over = {}) => ({ ...NEUTRAL, ...over });
 const once = (press, hold = {}) => {
     let done = false;
     return () => (done ? { ...NEUTRAL, ...hold } : ((done = true), { ...NEUTRAL, ...hold, ...press }));
@@ -147,6 +148,21 @@ shot('ДЖАГЛ', 'Перехват подбросил, дальше решае
         return { ...NEUTRAL, left: true, hand: free };
     };
     drive(f, 26, still, juggler);
+});
+
+shot('ПОПАЛ', 'Тело подсвечено, звезда лучами наружу, цифра урона. Главный сигнал — свет в точке касания.', (f) => {
+    place(f, 100);
+    drive(f, 9, once({ hand: true }));
+});
+
+shot('ЗАБЛОКИРОВАЛИ', 'Тела не подсвечивает, вместо звезды — дуга поперёк удара. Форма другая, не только цвет.', (f) => {
+    place(f, 100);
+    drive(f, 9, once({ hand: true }), () => input({ right: true }));
+});
+
+shot('ПРОМАХ', 'Ни вспышки, ни искры, ни замирания. Виден только след замаха в пустоте.', (f) => {
+    place(f, 180);
+    drive(f, 9, once({ hand: true }));
 });
 
 shot('РЕАКЦИЯ: УДАР В ГОЛОВУ', 'Голова уходит назад. Тело складывается за три кадра и медленно возвращается.', (f) => {

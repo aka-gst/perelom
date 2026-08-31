@@ -64,7 +64,14 @@ export const TUNE = {
     /** Слипание тел: подойти ближе нельзя, иначе бойцы проходят насквозь. */
     bodyGap: 54,
     /** Замедление кадра в момент попадания. Без него удар не чувствуется. */
-    hitstop: { hit: 5, counter: 9, chip: 3, launch: 11, throw: 9, juggle: 4 },
+    /**
+     * Замирание кадра в момент попадания.
+     *
+     * Было вдвое короче: пять кадров это 83 мс, и удар успевал пройти
+     * незамеченным. В файтингах на обычном попадании держат 8–16, и именно
+     * замирание, а не урон, читается как «попал».
+     */
+    hitstop: { hit: 9, counter: 14, chip: 5, launch: 16, throw: 13, juggle: 6 },
     juggleDecay: 0.84,
     /** Скорость, с которой встреча со скалой начинает ломать кости. */
     wallSpeed: 4.5,
@@ -101,6 +108,11 @@ export function createFight({ seed = 1, groundY = 430, centerX = 480, wall = 330
         banner: null,
         /** Всплывающие цифры урона. */
         numbers: [],
+        /**
+         * Вспышки попадания: где и какая. Бой их не рисует, а записывает,
+         * как и звук.
+         */
+        sparks: [],
         /**
          * Поводы для звука — списком, а не проигрыванием.
          *
@@ -177,6 +189,8 @@ export function stepFrame(fight, controllers) {
         number.y -= 0.7;
     }
     fight.numbers = fight.numbers.filter((n) => n.life > 0);
+    for (const spark of fight.sparks) spark.life -= 1;
+    fight.sparks = fight.sparks.filter((s) => s.life > 0);
     for (const f of fight.fighters) {
         f.flash = Math.max(0, f.flash - 1);
         decayBlood(f);
@@ -470,10 +484,11 @@ function land_hit(fight, att, def, spec, found) {
         def.body.guard -= spec.kind === 'grab' ? 0 : (spec.id === 'foot' ? 2 : 1);
         def.body.hp = Math.max(0, def.body.hp - spec.damage * CHIP_SCALE);
         def.vx = 2.4 * att.facing;
-        def.flash = 6;
+        // Блок не подсвечивает тело: подсветка значит «прошло».
+        spark(fight, att.sk.points[spec.joint], 'block');
         cue(fight, 'hand', 0.45);
         fight.freeze = TUNE.hitstop.chip;
-        fight.shake = 4;
+        fight.shake = 5;
         if (def.body.guard <= 0) {
             def.body.guard = 3;
             banner(fight, 'ГАРД СЛОМАН', '#ffd166');
@@ -494,8 +509,9 @@ function land_hit(fight, att, def, spec, found) {
         * (juggling ? TUNE.juggleDecay ** def.juggleHits : 1);
     const result = applyImpulse(def.body, found.bone, spec.impulse * scale, spec.damage * scale);
     fight.freeze = juggling ? TUNE.hitstop.juggle : TUNE.hitstop[outcome] ?? TUNE.hitstop.hit;
-    fight.shake = juggling ? 6 : outcome === 'counter' ? 13 : 8;
-    def.flash = 8;
+    fight.shake = juggling ? 7 : outcome === 'counter' ? 16 : 11;
+    def.flash = outcome === 'counter' ? 9 : 6;
+    spark(fight, found, outcome === 'counter' ? 'counter' : 'hit', outcome === 'counter' ? 1.5 : 1);
     cue(fight, spec.id === 'hand' ? 'hand' : 'heavy', outcome === 'counter' ? 1 : 0.85);
     number(fight, found, result.damage);
     if (outcome === 'counter') banner(fight, 'ВСТРЕЧНЫЙ', '#ff6b35');
@@ -737,6 +753,18 @@ function banner(fight, text, tone = '#ff2436') {
 function number(fight, at, value) {
     if (value < 1) return;
     fight.numbers.push({ x: at.x, y: at.y - 20, value: Math.round(value), life: 48 });
+}
+
+/**
+ * Вспышка в точке касания.
+ *
+ * Главный сигнал «удар был» — не урон и не цифра, а свет в месте
+ * попадания. Три вида различаются намеренно: по вспышке должно быть видно,
+ * попал ты, или тебя закрыли, — не читая ни полосок, ни лога.
+ */
+function spark(fight, at, kind, size = 1) {
+    fight.sparks.push({ x: at.x, y: at.y, kind, size, life: kind === 'block' ? 10 : 13 });
+    if (fight.sparks.length > 12) fight.sparks.shift();
 }
 
 /** Записать повод для звука. Список вычерпывает тот, кто играет. */
