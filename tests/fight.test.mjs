@@ -148,6 +148,30 @@ test('сломанной рукой нельзя ни ударить, ни пе�
     assert.equal(fight.fighters[1].body.hp, 100, 'сломанная рука не должна бить вовсе');
 });
 
+test('от руки голова уходит назад, от ноги боец складывается', () => {
+    // Обе позы обязаны быть живыми. Дважды получалась мёртвая ветка: сперва
+    // выбор шёл по имени кости — кулак в вытянутой руке идёт на уровне груди
+    // и в череп не попадает вовсе; потом по высоте касания — порог ловил всё
+    // подряд. Высота удара это свойство приёма, и тест держит именно его.
+    const high = createFight({ seed: 3 });
+    place(high, 100);
+    drive(high, 14, once({ hand: true }));
+    assert.equal(high.fighters[1].state, STATE.hurt);
+    assert.equal(high.fighters[1].hurtKind, 'hurtHigh');
+
+    const low = createFight({ seed: 3 });
+    place(low, 150);
+    drive(low, 22, once({ foot: true }));
+    assert.equal(low.fighters[1].state, STATE.hurt);
+    assert.equal(low.fighters[1].hurtKind, 'hurtLow');
+
+    // И реакция должна быть именно движением, а не сменой картинки: голова
+    // заметно уходит с места, иначе вес удара теряется.
+    const head = low.fighters[1].sk.points.head;
+    assert.ok(Math.abs(head.x - low.fighters[1].x) > 8 || head.y > low.fighters[1].groundY - 150,
+        'тело не сложилось: реакция на попадание не видна');
+});
+
 test('бой доигрывается до победителя и не зависает', () => {
     const fight = createFight({ seed: 21 });
     let n = 0;

@@ -26,7 +26,7 @@ import {
     applyPose, boneNear, centerOf, createSkeleton, distanceToBox, goRagdoll, heightOf,
     hitBone, hurtBox, step,
 } from './physics.js';
-import { POSES, poseForAttack, walkPose } from './poses.js';
+import { POSES, hurtPose, poseForAttack, walkPose } from './poses.js';
 import { makeRng } from './rng.js';
 
 export const STATE = {
@@ -131,6 +131,7 @@ function makeFighter(side, name, x, facing, groundY, centerX, wall) {
         airAttack: false,
         walkPhase: 0,
         blocking: false,
+        hurtKind: 'hurtLow',
         juggleHits: 0,
         juggleDamage: 0,
         flash: 0,
@@ -517,6 +518,17 @@ function land_hit(fight, att, def, spec, found) {
         return;
     } else {
         enter(def, STATE.hurt);
+        /*
+         * Куда пришёлся удар, так тело и складывается: от руки голова уходит
+         * назад, от ноги и броска боец сгибается пополам.
+         *
+         * Высота удара — свойство приёма, а не вычисляемая величина, и в
+         * файтингах она всегда задана самим приёмом. Пробовал иначе дважды,
+         * и оба раза выходила мёртвая ветка: по имени кости — кулак в
+         * вытянутой руке идёт на уровне груди и в череп не попадает вовсе;
+         * по высоте касания — порог ловил всё подряд.
+         */
+        def.hurtKind = spec.id === 'hand' ? 'hurtHigh' : 'hurtLow';
         def.vx = (outcome === 'counter' ? 4.6 : 3.1) * att.facing;
         if (outcome === 'counter') note(fight, `встречный: ${BONES[found.bone].name.toLowerCase()}`);
     }
@@ -657,7 +669,7 @@ function poseOf(f) {
     const ground = f.groundY - f.y;
     let pose = POSES.idle;
     if (f.state === STATE.attack) pose = poseForAttack(f.action, f.frame, ACTION[f.action]);
-    else if (f.state === STATE.hurt) pose = POSES.hurt;
+    else if (f.state === STATE.hurt) pose = hurtPose(f.hurtKind ?? 'hurtLow', f.frame, TUNE.hurtFrames);
     else if (f.state === STATE.getup) pose = POSES.getup;
     else if (f.state === STATE.jump || f.y > 0) pose = POSES.air;
     else if (f.state === STATE.dash) pose = POSES.step;
