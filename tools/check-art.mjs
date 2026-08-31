@@ -24,8 +24,10 @@ import { manifest } from './art-spec.mjs';
 const root = process.argv[2] ?? 'assets/art';
 const problems = [];
 const notes = [];
+const stale = [];
 const fail = (s) => problems.push(s);
 const ok = (s) => notes.push(s);
+const note = (s) => stale.push(s);
 
 /* ─────────────────────────── PNG ─────────────────────────── */
 
@@ -149,6 +151,8 @@ function readWebp(buf) {
 /* ─────────────────────────── проверки ─────────────────────────── */
 
 const files = manifest();
+/** Файлы прежнего уговора: работают через подгонку, ждут перерисовки. */
+const legacy = new Set(files.filter((f) => f.legacy).map((f) => f.name));
 const wanted = new Map(files.map((f) => [f.name, f]));
 const hashes = new Map();
 
@@ -177,7 +181,9 @@ for (const name of present) {
         const png = readPng(buf);
         if (png.error) { fail(`${name}: ${png.error}`); continue; }
         if (png.width !== spec.w || png.height !== spec.h) {
-            fail(`${name}: ${png.width}×${png.height}, а нужно ${spec.w}×${spec.h}`);
+            const say = legacy.has(name) ? note : fail;
+            say(`${name}: ${png.width}×${png.height} вместо ${spec.w}×${spec.h}`
+                + (legacy.has(name) ? ' — прежний уговор, работает через подгонку, ждёт перерисовки' : ''));
             continue;
         }
         if (!spec.opaque && png.channels !== 4 && png.channels !== 2) {
@@ -252,6 +258,10 @@ if (missing.length) {
     console.log(`\nНе пришло (${missing.length}):`);
     for (const f of missing.slice(0, 20)) console.log(`  · ${f.name} — ${f.group}, волна ${f.wave}`);
     if (missing.length > 20) console.log(`  · …и ещё ${missing.length - 20}`);
+}
+if (stale.length) {
+    console.log(`\nПрежний уговор — работает, но ждёт перерисовки (${stale.length}):`);
+    for (const s of stale) console.log(`  · ${s}`);
 }
 if (problems.length) {
     console.log(`\nВернулось на переделку (${problems.length}):`);

@@ -422,14 +422,14 @@
 <text x="750" y="1016" text-anchor="middle" font-family="monospace" font-size="18" fill="#5c5148">getup</text>
 </g>
 <text x="24" y="1110" font-family="monospace" font-size="24" font-weight="700" fill="#111">Как крепится спрайт части тела (пример: предплечье с кистью)</text>
-<rect x="60" y="1150" width="224" height="128" fill="#fff" stroke="#8c8078" stroke-width="2" stroke-dasharray="6 6"/>
-<path d="M 76 1214 L 204 1214" stroke="#8c8078" stroke-width="2" stroke-dasharray="4 5"/>
-<path d="M 76 1188 L 194 1184 L 256 1174 L 262 1232 L 198 1242 L 76 1240 Z" fill="#1a1a1f" opacity="0.85"/>
-<circle cx="76" cy="1214" r="7" fill="#d81e3c"/>
-<circle cx="204" cy="1214" r="7" fill="#d81e3c"/>
-<text x="76" y="1274" text-anchor="middle" font-family="monospace" font-size="18" fill="#d81e3c">A — локоть (16, 64)</text>
-<text x="204" y="1298" text-anchor="middle" font-family="monospace" font-size="18" fill="#d81e3c">B — запястье (144, 64)</text>
-<text x="60" y="1318" font-family="monospace" font-size="17" fill="#333">Кость лежит горизонтально: сустав A слева, сустав B справа, оба на середине высоты.</text>
-<text x="60" y="1342" font-family="monospace" font-size="17" fill="#333">Кулак выходит ЗА сустав B — под него в спрайте оставлено 64 px справа.</text>
-<text x="60" y="1366" font-family="monospace" font-size="17" fill="#333">Код поворачивает спрайт так, чтобы A и B легли на суставы скелета. Больше он ничего не двигает.</text>
+<rect x="60" y="1150" width="160" height="96" fill="#fff" stroke="#8c8078" stroke-width="2" stroke-dasharray="6 6"/>
+<path d="M 76 1198 L 204 1198" stroke="#8c8078" stroke-width="2" stroke-dasharray="4 5"/>
+<path d="M 76 1174 L 204 1181 L 204 1215 L 76 1222 Z" fill="#1a1a1f" opacity="0.85"/>
+<circle cx="76" cy="1198" r="7" fill="#d81e3c"/>
+<circle cx="204" cy="1198" r="7" fill="#d81e3c"/>
+<text x="76" y="1258" text-anchor="middle" font-family="monospace" font-size="18" fill="#d81e3c">A — локоть (16, 48)</text>
+<text x="204" y="1282" text-anchor="middle" font-family="monospace" font-size="18" fill="#d81e3c">B — запястье (144, 48)</text>
+<text x="60" y="1286" font-family="monospace" font-size="17" fill="#333">Кость лежит горизонтально: сустав A слева, сустав B справа, оба на середине высоты.</text>
+<text x="60" y="1310" font-family="monospace" font-size="17" fill="#333">Кость идёт от края до края: предплечье кончается запястьем. Кисть — отдельный файл.</text>
+<text x="60" y="1334" font-family="monospace" font-size="17" fill="#333">Код поворачивает спрайт так, чтобы A и B легли на суставы скелета. Больше он ничего не двигает.</text>
 </svg>

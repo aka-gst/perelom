@@ -66,13 +66,13 @@ const anchor = anchorsOf(sample);
 push(`<text x="24" y="${dy - 10}" font-family="monospace" font-size="24" font-weight="700" fill="#111">Как крепится спрайт части тела (пример: предплечье с кистью)</text>`);
 push(`<rect x="${dx}" y="${dy + 30}" width="${sample.w}" height="${sample.h}" fill="#fff" stroke="#8c8078" stroke-width="2" stroke-dasharray="6 6"/>`);
 push(`<path d="M ${dx + anchor.a[0]} ${dy + 30 + anchor.a[1]} L ${dx + anchor.b[0]} ${dy + 30 + anchor.b[1]}" stroke="#8c8078" stroke-width="2" stroke-dasharray="4 5"/>`);
-push(`<path d="M ${dx + anchor.a[0]} ${dy + 30 + anchor.a[1] - 26} L ${dx + anchor.b[0] - 10} ${dy + 30 + anchor.b[1] - 30} L ${dx + anchor.b[0] + 52} ${dy + 30 + anchor.b[1] - 40} L ${dx + anchor.b[0] + 58} ${dy + 30 + anchor.b[1] + 18} L ${dx + anchor.b[0] - 6} ${dy + 30 + anchor.b[1] + 28} L ${dx + anchor.a[0]} ${dy + 30 + anchor.a[1] + 26} Z" fill="#1a1a1f" opacity="0.85"/>`);
+push(`<path d="M ${dx + anchor.a[0]} ${dy + 30 + anchor.a[1] - 24} L ${dx + anchor.b[0]} ${dy + 30 + anchor.b[1] - 17} L ${dx + anchor.b[0]} ${dy + 30 + anchor.b[1] + 17} L ${dx + anchor.a[0]} ${dy + 30 + anchor.a[1] + 24} Z" fill="#1a1a1f" opacity="0.85"/>`);
 push(`<circle cx="${dx + anchor.a[0]}" cy="${dy + 30 + anchor.a[1]}" r="7" fill="#d81e3c"/>`);
 push(`<circle cx="${dx + anchor.b[0]}" cy="${dy + 30 + anchor.b[1]}" r="7" fill="#d81e3c"/>`);
 push(`<text x="${dx + anchor.a[0]}" y="${dy + 30 + anchor.a[1] + 60}" text-anchor="middle" font-family="monospace" font-size="18" fill="#d81e3c">A — локоть (${anchor.a[0]}, ${anchor.a[1]})</text>`);
 push(`<text x="${dx + anchor.b[0]}" y="${dy + 30 + anchor.b[1] + 84}" text-anchor="middle" font-family="monospace" font-size="18" fill="#d81e3c">B — запястье (${anchor.b[0]}, ${anchor.b[1]})</text>`);
 push(`<text x="${dx}" y="${dy + 30 + sample.h + 40}" font-family="monospace" font-size="17" fill="#333">Кость лежит горизонтально: сустав A слева, сустав B справа, оба на середине высоты.</text>`);
-push(`<text x="${dx}" y="${dy + 30 + sample.h + 64}" font-family="monospace" font-size="17" fill="#333">Кулак выходит ЗА сустав B — под него в спрайте оставлено 64 px справа.</text>`);
+push(`<text x="${dx}" y="${dy + 30 + sample.h + 64}" font-family="monospace" font-size="17" fill="#333">Кость идёт от края до края: предплечье кончается запястьем. Кисть — отдельный файл.</text>`);
 push(`<text x="${dx}" y="${dy + 30 + sample.h + 88}" font-family="monospace" font-size="17" fill="#333">Код поворачивает спрайт так, чтобы A и B легли на суставы скелета. Больше он ничего не двигает.</text>`);
 
 push(`</svg>`);
