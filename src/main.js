@@ -15,6 +15,7 @@ import { STATE, createFight, optionsFor, stepFrame, tick } from './fight.js';
 import { controller, makeMind } from './ai.js';
 import { draw } from './render.js';
 import { loadArenaArt, loadFighterArt } from './sprites.js';
+import { createAudio, level, play } from './audio.js';
 import { makeRng } from './rng.js';
 
 const $ = (id) => document.getElementById(id);
@@ -28,6 +29,12 @@ const ART = {
     kostolom: loadFighterArt('kostolom'),
     arena: loadArenaArt('dusk'),
 };
+
+/**
+ * Звук. Под `?тихо` контекст не создаётся вовсе, поэтому игра, открытая
+ * сессией для проверки, физически не может зашуметь в колонки.
+ */
+const audio = createAudio();
 
 let fight = null;
 let mind = null;
@@ -59,6 +66,7 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
     if (event.repeat) return;
     held.add(name);
+    audio.wake?.(); // контекст рождается на первом жесте, раньше браузер не даст
     if (name === 'hand' || name === 'foot' || name === 'grab' || name === 'up') pressed[name] = true;
     if (name === 'left' || name === 'right') {
         const now = performance.now();
@@ -107,6 +115,7 @@ const PULL_DISTANCE = 18;
 for (const node of document.querySelectorAll('.key')) {
     let startY = null;
     node.addEventListener('pointerdown', (event) => {
+        audio.wake?.();
         startY = event.clientY;
         node.setPointerCapture?.(event.pointerId);
     });
@@ -156,9 +165,15 @@ function frame(now) {
 
     if (!aiControl) aiControl = controller(mind, makeRng(7));
     tick(fight, dt, [playerInput, aiControl]);
+    speak();
     paint();
     hud();
     if (fight.over && $('verdict').hidden) verdict();
+}
+
+/** Вычерпать поводы для звука и сыграть. Молчит, если звук выключен. */
+function speak() {
+    for (const sound of fight.sounds.splice(0)) play(audio, sound.name, sound.strength);
 }
 
 function paint() {
@@ -251,6 +266,9 @@ function verdict() {
  */
 globalThis.PERELOM = {
     get fight() { return fight; },
+    get audio() { return audio; },
+    /** Уровень сигнала: под `?тихо` обязан быть ровно ноль. */
+    level: () => level(audio),
     start: startFight,
     show,
     /** Нажать кнопку так, как её нажал бы игрок: попадёт в очередь нажатий. */
@@ -267,6 +285,7 @@ globalThis.PERELOM = {
         if (!aiControl) aiControl = controller(mind, makeRng(7));
         const steps = Math.max(1, Math.round(seconds * FPS));
         for (let i = 0; i < steps; i += 1) stepFrame(fight, [playerInput, aiControl]);
+        speak();
         paint();
         hud();
         return this.state();

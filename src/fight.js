@@ -101,6 +101,14 @@ export function createFight({ seed = 1, groundY = 430, centerX = 480, wall = 330
         banner: null,
         /** Всплывающие цифры урона. */
         numbers: [],
+        /**
+         * Поводы для звука — списком, а не проигрыванием.
+         *
+         * Модуль боя обязан оставаться чистым: он считает, а не шумит.
+         * Кто хочет звук — вычерпывает этот список и играет сам, и потому
+         * бой одинаково считается и в браузере, и в тестах.
+         */
+        sounds: [],
         fighters: [
             makeFighter(0, 'ТЫ', centerX - 70, 1, groundY, centerX, wall),
             makeFighter(1, 'КОСТОЛОМ', centerX + 70, -1, groundY, centerX, wall),
@@ -462,6 +470,7 @@ function land_hit(fight, att, def, spec, found) {
         def.body.hp = Math.max(0, def.body.hp - spec.damage * CHIP_SCALE);
         def.vx = 2.4 * att.facing;
         def.flash = 6;
+        cue(fight, 'hand', 0.45);
         fight.freeze = TUNE.hitstop.chip;
         fight.shake = 4;
         if (def.body.guard <= 0) {
@@ -486,6 +495,7 @@ function land_hit(fight, att, def, spec, found) {
     fight.freeze = juggling ? TUNE.hitstop.juggle : TUNE.hitstop[outcome] ?? TUNE.hitstop.hit;
     fight.shake = juggling ? 6 : outcome === 'counter' ? 13 : 8;
     def.flash = 8;
+    cue(fight, spec.id === 'hand' ? 'hand' : 'heavy', outcome === 'counter' ? 1 : 0.85);
     number(fight, found, result.damage);
     if (outcome === 'counter') banner(fight, 'ВСТРЕЧНЫЙ', '#ff6b35');
     splash(def, found, 6 + spec.impulse / 46);
@@ -541,6 +551,7 @@ function slam(fight, from, victim, spec) {
     goRagdoll(victim.sk, SLAM.vx * from.facing, SLAM.vy, SLAM.spin * from.facing);
     fight.freeze = TUNE.hitstop.throw;
     fight.shake = 14;
+    cue(fight, 'heavy', 1);
     splash(victim, centerOf(victim.sk), 22);
     if (result.broke) startXray(fight, victim, 'spine', result);
     checkDeath(fight, victim);
@@ -567,6 +578,7 @@ function ragdoll(fight, f) {
         const impulse = Math.min(760, speedX * 95);
         const result = applyImpulse(f.body, bone, impulse, impulse / 30);
         fight.shake = 16;
+        cue(fight, 'heavy', 1);
         banner(fight, 'О СКАЛУ', '#ff2436');
         number(fight, point, result.damage);
         splash(f, point, 20);
@@ -605,6 +617,7 @@ function groundImpact(fight, f, fallSpeed) {
     const impulse = Math.min(700, fallSpeed * 0.5);
     const result = applyImpulse(f.body, bone, impulse, impulse / 28);
     fight.shake = 11;
+    cue(fight, 'heavy', 0.8);
     number(fight, lowest, result.damage);
     splash(f, lowest, 14);
     if (result.broke) startXray(fight, f, bone, result);
@@ -624,6 +637,7 @@ function startXray(fight, victim, boneId, result) {
     };
     fight.xrayFrames = 96;
     fight.shake = 20;
+    cue(fight, result.tore ? 'tear' : 'crack', 1);
     fight.freeze = 0;
     const lost = BONES[boneId].disables;
     note(fight, `${BONES[boneId].name}: ${result.tore ? 'ОТОРВАНА' : 'СЛОМАН'}`
@@ -711,6 +725,12 @@ function banner(fight, text, tone = '#ff2436') {
 function number(fight, at, value) {
     if (value < 1) return;
     fight.numbers.push({ x: at.x, y: at.y - 20, value: Math.round(value), life: 48 });
+}
+
+/** Записать повод для звука. Список вычерпывает тот, кто играет. */
+function cue(fight, name, strength = 1) {
+    fight.sounds.push({ name, strength });
+    if (fight.sounds.length > 16) fight.sounds.shift();
 }
 
 function note(fight, text) {

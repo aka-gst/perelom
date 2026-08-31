@@ -19,17 +19,16 @@ const ROOT = resolve(new URL('..', import.meta.url).pathname);
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 
 /** Порядок склейки = порядок зависимостей. Циклов в проекте нет. */
-const MODULES = ['rng', 'rules', 'body', 'physics', 'poses', 'sprites', 'fight', 'ai', 'render', 'main'];
+const MODULES = ['rng', 'rules', 'body', 'physics', 'poses', 'sprites', 'audio', 'fight', 'ai', 'render', 'main'];
 
-const MIME = { '.png': 'image/png', '.webp': 'image/webp' };
+const MIME = { '.png': 'image/png', '.webp': 'image/webp', '.wav': 'audio/wav' };
 
-function assets() {
-    const dir = join(ROOT, 'assets/art');
+function pack(dir) {
     const map = {};
-    for (const name of readdirSync(dir)) {
+    for (const name of readdirSync(join(ROOT, dir))) {
         const type = MIME[extname(name).toLowerCase()];
         if (!type) continue;
-        map[name] = `data:${type};base64,${readFileSync(join(dir, name)).toString('base64')}`;
+        map[name] = `data:${type};base64,${readFileSync(join(ROOT, dir, name)).toString('base64')}`;
     }
     return map;
 }
@@ -43,7 +42,8 @@ function flatten(source) {
         .trim();
 }
 
-const art = assets();
+const art = pack('assets/art');
+const sfx = pack('sfx');
 const css = read('styles/game.css')
     .replace(/url\('\.\.\/assets\/art\/([^']+)'\)/g, (_, name) => `url('${art[name] ?? ''}')`);
 
@@ -66,6 +66,7 @@ ${markup}
 
 <script type="module">
 globalThis.__PERELOM_ASSETS = ${JSON.stringify(art)};
+globalThis.__PERELOM_SFX = ${JSON.stringify(sfx)};
 
 ${code}
 </` + `script>
