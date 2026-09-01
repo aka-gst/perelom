@@ -245,13 +245,18 @@ test('боец разворачивается к лежащему телу, а �
     const hunter = fight.fighters[0];
     assert.equal(victim.state, STATE.down);
 
-    // Ставим бойца СПРАВА от улетевшего тела: по старому полю `x` тело
-    // числится слева, по скелету — оно рядом. Разворот обязан идти по телу.
+    // Ставим бойца МЕЖДУ старым и настоящим положением тела. Только так
+    // две версии расходятся: по устаревшему полю `x` тело числится слева,
+    // по скелету оно справа. Поставь его сбоку от обоих — и сломанная
+    // версия дала бы тот же ответ, а проверка ничего не значила бы.
     drive(fight, 40);
-    hunter.x = centerOf(victim.sk).x + 60;
+    const stale = victim.x;
+    const real = centerOf(victim.sk).x;
+    assert.ok(real - stale > 80, `тело обязано было улететь: ${stale.toFixed(0)} → ${real.toFixed(0)}`);
+    hunter.x = (stale + real) / 2;
     drive(fight, 2);
-    assert.equal(hunter.facing, -1,
-        `боец обязан повернуться к телу: тело на ${centerOf(victim.sk).x.toFixed(0)}, он на ${hunter.x.toFixed(0)}`);
+    assert.equal(hunter.facing, 1,
+        `боец обязан смотреть на тело (${real.toFixed(0)}), а не на его старое место (${stale.toFixed(0)})`);
 });
 
 test('сломанный позвоночник отнимает бросок', () => {
