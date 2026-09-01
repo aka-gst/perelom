@@ -52,17 +52,40 @@ const bodyStart = html.indexOf('<main class="app">');
 const bodyEnd = html.indexOf('</main>') + '</main>'.length;
 const markup = html.slice(bodyStart, bodyEnd);
 
+/*
+ * Счётчик берётся из `index.html`, а не пишется тут второй раз.
+ *
+ * Он стоит в шапке, а сборка вырезала только `<main>` — тег молча не
+ * доезжал до однофайловой сборки, то есть ровно до того файла, который
+ * выкладывают. Разметка была правильной, выложенное — без счётчика.
+ * Копия здесь повторила бы ту же ошибку через месяц, поэтому источник один.
+ */
+const counter = (html.match(/<script[^>]*data-website-id[^>]*><\/script>/) ?? [''])[0];
+if (!counter) throw new Error('в index.html нет тега счётчика — выкладывать нечего');
+
 const code = MODULES.map((name) => {
     const source = flatten(read(`src/${name}.js`));
     return `/* ───────── src/${name}.js ───────── */\n${source}`;
 }).join('\n\n');
 
-process.stdout.write(`<title>ПЕРЕЛОМ</title>
+/*
+ * Кодировка объявляется в самом файле.
+ *
+ * Наш дев-сервер шлёт `charset=utf-8` заголовком, и потому сборка у нас
+ * выглядела правильной. На чужом сервере без заголовка и по `file://`
+ * браузер угадывает — и весь русский текст рассыпается в «РџР•Р Р•Р›РћРњ».
+ * Соседняя сессия поймала это, готовя выкладку. Одна строка, и файл
+ * перестаёт зависеть от того, как его отдают.
+ */
+process.stdout.write(`<meta charset="utf-8">
+<title>ПЕРЕЛОМ</title>
 <style>
 ${css}
 </style>
 
 ${markup}
+
+${counter}
 
 <script type="module">
 globalThis.__PERELOM_ASSETS = ${JSON.stringify(art)};

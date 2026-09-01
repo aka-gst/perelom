@@ -5,11 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>ПЕРЕЛОМ — файтинг на перехватах</title>
 <meta name="description" content="Файтинг, в котором перехват подбрасывает противника, а сломанная кость вычёркивает действие из треугольника.">
+<link rel="stylesheet" href="/game-menu.css">
 <link rel="stylesheet" href="./styles/game.css">
+<!-- Счётчик событий: без него нельзя узнать даже того, играл ли кто-нибудь.
+     Путь от корня сайта; stats.aka-gst.ru намеренно отдаёт 404 снаружи. -->
+<script defer src="/pulse/script.js" data-website-id="de024048-c4c3-4639-bbdf-808c558f6d71"></script>
 </head>
 <body>
 
 <main class="app">
+
+    <!-- Ссылкой, а не кнопкой: ссылку открывают средним щелчком и видят без
+         скрипта. Высота не меньше 44 точек — требование владельца.
+         Внутри <main> потому, что однофайловая сборка берёт только его:
+         снаружи до выкладки доезжал один стиль без самой кнопки. -->
+    <a class="site-home" href="/">НА ГЛАВНУЮ</a>
 
     <!-- ─────────────── МЕНЮ ─────────────── -->
     <section class="screen screen--menu" id="screen-menu">
