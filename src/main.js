@@ -17,6 +17,7 @@ import { draw } from './render.js';
 import { loadArenaArt, loadFighterArt } from './sprites.js';
 import { createAudio, level, play } from './audio.js';
 import { makeRng } from './rng.js';
+import { бойНачат, бойКончен, обучениеОткрыто } from './schet.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -179,7 +180,7 @@ export function askQuit() {
 }
 
 $('go-fight').addEventListener('click', () => startFight());
-$('go-learn').addEventListener('click', () => show('learn'));
+$('go-learn').addEventListener('click', () => { обучениеОткрыто(); show('learn'); });
 $('learn-back').addEventListener('click', () => show('menu'));
 
 function startFight(seed) {
@@ -198,6 +199,7 @@ function startFight(seed) {
     $('verdict').hidden = true;
     $('confirm').hidden = true;
     show('fight');
+    бойНачат();
 }
 
 /* ─────────────────────────── цикл ─────────────────────────── */
@@ -216,7 +218,22 @@ function frame(now) {
     speak();
     paint();
     hud();
-    if (fight.over && $('verdict').hidden) verdict();
+    итог();
+}
+
+/*
+ * Заметить конец боя.
+ *
+ * Стояло внутри отрисовочного цикла — и потому случалось только если кадр
+ * рисуется. Свернул человек вкладку на последнем ударе, браузер заморозил
+ * `requestAnimationFrame` — и событие «поражение» не уходит вовсе, а
+ * вердикт ждёт возвращения. Здесь же оно недостижимо для щупа: тот шагает
+ * бой напрямую, то есть проверяет не тот путь, которым идёт человек.
+ */
+function итог() {
+    if (!fight || !fight.over || !$('verdict').hidden) return;
+    бойКончен(fight);
+    verdict();
 }
 
 /** Вычерпать поводы для звука и сыграть. Молчит, если звук выключен. */
@@ -336,6 +353,7 @@ globalThis.PERELOM = {
         if (!aiControl) aiControl = controller(mind, makeRng(7));
         const steps = Math.max(1, Math.round(seconds * FPS));
         for (let i = 0; i < steps; i += 1) stepFrame(fight, [playerInput, aiControl]);
+        итог();
         speak();
         paint();
         hud();
