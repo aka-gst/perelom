@@ -484,8 +484,9 @@ function land_hit(fight, att, def, spec, found) {
         def.body.guard -= spec.kind === 'grab' ? 0 : (spec.id === 'foot' ? 2 : 1);
         def.body.hp = Math.max(0, def.body.hp - spec.damage * CHIP_SCALE);
         def.vx = 2.4 * att.facing;
-        // Блок не подсвечивает тело: подсветка значит «прошло».
-        spark(fight, att.sk.points[spec.joint], 'block');
+        // Блок не подсвечивает тело: подсветка значит «прошло». И искры
+        // летят НАЗАД, в бьющего: удар отражён, а не прошёл сквозь.
+        spark(fight, att.sk.points[spec.joint], 'block', 1, -att.facing);
         cue(fight, 'hand', 0.45);
         fight.freeze = TUNE.hitstop.chip;
         fight.shake = 5;
@@ -511,7 +512,9 @@ function land_hit(fight, att, def, spec, found) {
     fight.freeze = juggling ? TUNE.hitstop.juggle : TUNE.hitstop[outcome] ?? TUNE.hitstop.hit;
     fight.shake = juggling ? 7 : outcome === 'counter' ? 16 : 11;
     def.flash = outcome === 'counter' ? 9 : 6;
-    spark(fight, found, outcome === 'counter' ? 'counter' : 'hit', outcome === 'counter' ? 1.5 : 1);
+    // Искры летят СКВОЗЬ противника, по ходу удара. Направление читается
+    // боковым зрением там, где цвет и форма ещё не разобраны.
+    spark(fight, found, outcome === 'counter' ? 'counter' : 'hit', outcome === 'counter' ? 1.5 : 1, att.facing);
     cue(fight, spec.id === 'hand' ? 'hand' : 'heavy', outcome === 'counter' ? 1 : 0.85);
     number(fight, found, result.damage);
     if (outcome === 'counter') banner(fight, 'ВСТРЕЧНЫЙ', '#ff6b35');
@@ -762,8 +765,8 @@ function number(fight, at, value) {
  * попадания. Три вида различаются намеренно: по вспышке должно быть видно,
  * попал ты, или тебя закрыли, — не читая ни полосок, ни лога.
  */
-function spark(fight, at, kind, size = 1) {
-    fight.sparks.push({ x: at.x, y: at.y, kind, size, life: kind === 'block' ? 10 : 13 });
+function spark(fight, at, kind, size = 1, dir = 1) {
+    fight.sparks.push({ x: at.x, y: at.y, kind, size, dir, life: kind === 'block' ? 10 : 13 });
     if (fight.sparks.length > 12) fight.sparks.shift();
 }
 

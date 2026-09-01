@@ -19,11 +19,17 @@ test('немой запуск ловит оба написания и не ло�
     const at = (search, hash = '') => isQuiet({ search, hash });
     assert.equal(at('?тихо'), true);
     assert.equal(at('?quiet=1'), true);
+    // Транслитерация — третья форма из общего соглашения. Её отсутствие и
+    // было моей поломкой: рецепт я написал свой, вместо того чтобы взять
+    // канонический из навыка.
+    assert.equal(at('?tiho'), true);
+    assert.equal(at('', '#tiho'), true);
     assert.equal(at('', '#тихо'), true);
     assert.equal(at('?a=1&quiet'), true);
     // Ради этих двух в выражении и стоят границы.
     assert.equal(at('?l=ABC'), false);
     assert.equal(at('?quietly'), false);
+    assert.equal(at('?tihonko'), false);
     assert.equal(at(''), false);
 });
 

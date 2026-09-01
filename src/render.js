@@ -93,10 +93,41 @@ function bannerOf(ctx, fight, w, h) {
  * прошло или закрыли, не читая ни полосок, ни лога.
  */
 const SPARK = {
-    hit: { tone: '#fff3c4', rays: 7, reach: 30 },
-    counter: { tone: '#ff8a3d', rays: 9, reach: 44 },
-    block: { tone: '#7dd3fc', rays: 0, reach: 26 },
+    hit: { tone: '#fff3c4', rays: 7, reach: 30, spread: 0.95 },
+    counter: { tone: '#ff8a3d', rays: 9, reach: 44, spread: 1.05 },
+    block: { tone: '#7dd3fc', rays: 5, reach: 26, spread: 0.6, arc: true },
 };
+
+/**
+ * Лучи вспышки — конусом по направлению, а не звездой во все стороны.
+ *
+ * Направление читается боковым зрением раньше, чем цвет и форма: у
+ * попадания искры уходят СКВОЗЬ противника по ходу удара, у звона —
+ * НАЗАД, в бьющего. Цветом развести нельзя: палитра уже занята смыслами,
+ * и четвёртый сломал бы прежние.
+ *
+ * Функция чистая, потому что по ней же и запирается тестом: средний ход
+ * лучей по горизонтали у попадания положительный, у звона отрицательный.
+ */
+export function sparkRays(kind, dir = 1) {
+    const spec = SPARK[kind] ?? SPARK.hit;
+    const base = dir >= 0 ? 0 : Math.PI;
+    const out = [];
+    for (let i = 0; i < spec.rays; i += 1) {
+        const t = spec.rays === 1 ? 0 : (i / (spec.rays - 1)) * 2 - 1;
+        const angle = base + t * spec.spread;
+        // Крайние лучи короче — конус, а не веер.
+        out.push({ angle, reach: spec.reach * (1 - Math.abs(t) * 0.35) });
+    }
+    return out;
+}
+
+/** Средний ход лучей по горизонтали. По нему исход и отличается числом. */
+export function sparkDrift(kind, dir = 1) {
+    const rays = sparkRays(kind, dir);
+    if (!rays.length) return 0;
+    return rays.reduce((sum, r) => sum + Math.cos(r.angle) * r.reach, 0) / rays.length;
+}
 
 function sparks(ctx, fight) {
     if (!fight.sparks.length) return;
@@ -108,36 +139,33 @@ function sparks(ctx, fight) {
         const reach = spec.reach * s.size * (1.3 - k * 0.5);
         ctx.globalAlpha = Math.min(1, k * 1.6);
 
-        if (spec.rays) {
-            ctx.strokeStyle = spec.tone;
-            ctx.lineWidth = 3.5 * s.size * k;
+        const grow = s.size * (1.3 - k * 0.5);
+        ctx.strokeStyle = spec.tone;
+        ctx.lineWidth = (spec.arc ? 3 : 3.5) * s.size * k;
+        ctx.beginPath();
+        for (const ray of sparkRays(s.kind, s.dir)) {
+            const inner = ray.reach * grow * 0.28;
+            const outer = ray.reach * grow;
+            ctx.moveTo(s.x + Math.cos(ray.angle) * inner, s.y + Math.sin(ray.angle) * inner);
+            ctx.lineTo(s.x + Math.cos(ray.angle) * outer, s.y + Math.sin(ray.angle) * outer);
+        }
+        ctx.stroke();
+
+        if (spec.arc) {
+            // Звон вдобавок к конусу назад даёт дугу — щит поперёк удара.
+            const face = s.dir >= 0 ? 0 : Math.PI;
+            ctx.lineWidth = 4.5 * k;
             ctx.beginPath();
-            for (let i = 0; i < spec.rays; i += 1) {
-                const angle = (i / spec.rays) * Math.PI * 2 + 0.4;
-                const inner = reach * 0.28;
-                ctx.moveTo(s.x + Math.cos(angle) * inner, s.y + Math.sin(angle) * inner);
-                ctx.lineTo(s.x + Math.cos(angle) * reach, s.y + Math.sin(angle) * reach);
-            }
+            ctx.arc(s.x, s.y, spec.reach * grow * 1.2, face - 0.85, face + 0.85);
             ctx.stroke();
-            const core = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, reach * 0.55);
+        } else {
+            const core = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, spec.reach * grow * 0.55);
             core.addColorStop(0, '#ffffff');
             core.addColorStop(1, 'rgba(255,255,255,0)');
             ctx.fillStyle = core;
             ctx.beginPath();
-            ctx.arc(s.x, s.y, reach * 0.55, 0, Math.PI * 2);
+            ctx.arc(s.x, s.y, spec.reach * grow * 0.55, 0, Math.PI * 2);
             ctx.fill();
-        } else {
-            // Блок: дуга поперёк удара, а не звезда. Форма важнее цвета —
-            // по ней видно «закрыли», даже когда не разобрал оттенок.
-            ctx.strokeStyle = spec.tone;
-            ctx.lineWidth = 5 * k;
-            ctx.beginPath();
-            ctx.arc(s.x, s.y, reach, -0.9, 0.9);
-            ctx.stroke();
-            ctx.lineWidth = 2 * k;
-            ctx.beginPath();
-            ctx.arc(s.x, s.y, reach * 1.35, -0.6, 0.6);
-            ctx.stroke();
         }
     }
     ctx.restore();
