@@ -67,7 +67,10 @@
                 <div class="bar-guard" id="guard-0"></div>
                 <div class="bar-bones" id="bones-0"></div>
             </div>
-            <div class="clock"><div class="clock-phase">ПЕРЕЛОМ</div></div>
+            <div class="clock">
+                <div class="clock-phase">ПЕРЕЛОМ</div>
+                <button class="quit" id="quit" title="Выйти в меню">ВЫЙТИ</button>
+            </div>
             <div class="bar bar--right">
                 <div class="bar-name" id="name-1">ПРОТИВНИК</div>
                 <div class="bar-track"><i class="bar-fill bar-fill--foe" id="hp-1"></i></div>
@@ -80,6 +83,7 @@
             <canvas id="arena" width="960" height="540"></canvas>
             <div class="combo" id="combo" hidden><b id="combo-n">0</b><span>ПОПАДАНИЙ</span></div>
             <div class="verdict" id="verdict" hidden></div>
+            <div class="verdict" id="confirm" hidden></div>
         </div>
 
         <p class="log" id="log">Выбирай вслепую. Он выбирает одновременно.</p>

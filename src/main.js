@@ -138,6 +138,46 @@ function show(name) {
     if (running) last = performance.now();
 }
 
+/**
+ * Выход из боя.
+ *
+ * Кнопки не было вовсе — из начатого боя нельзя было выйти до чьей-нибудь
+ * победы. Это хуже, чем выход без предупреждения: игрок заперт.
+ *
+ * Спрашиваем, только если бой идёт: после победы терять нечего. И проверять
+ * надо обе половины — «нет» обязан удерживать, «да» обязан выпускать;
+ * правка, которая спрашивает и не выпускает, хуже болезни.
+ */
+$('quit').addEventListener('click', () => askQuit());
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && running) askQuit();
+});
+
+export function askQuit() {
+    if (!fight || fight.over) {
+        show('menu');
+        return false;
+    }
+    const node = $('confirm');
+    if (!node.hidden) return true;
+    node.innerHTML = '';
+    const h = document.createElement('h3');
+    h.textContent = 'ВЫЙТИ?';
+    const p = document.createElement('p');
+    p.textContent = 'Бой не доигран — он не сохраняется, и вернуться в него будет нельзя.';
+    const stay = document.createElement('button');
+    stay.className = 'mbtn mbtn--primary';
+    stay.textContent = 'ОСТАТЬСЯ';
+    stay.addEventListener('click', () => { node.hidden = true; });
+    const leave = document.createElement('button');
+    leave.className = 'mbtn';
+    leave.textContent = 'ВЫЙТИ В МЕНЮ';
+    leave.addEventListener('click', () => { node.hidden = true; show('menu'); });
+    node.append(h, p, stay, leave);
+    node.hidden = false;
+    return true;
+}
+
 $('go-fight').addEventListener('click', () => startFight());
 $('go-learn').addEventListener('click', () => show('learn'));
 $('learn-back').addEventListener('click', () => show('menu'));
@@ -149,6 +189,7 @@ function startFight() {
     fight.arenaArt = ART.arena;
     mind = makeMind();
     $('verdict').hidden = true;
+    $('confirm').hidden = true;
     show('fight');
 }
 
@@ -270,6 +311,8 @@ globalThis.PERELOM = {
     /** Уровень сигнала: под `?тихо` обязан быть ровно ноль. */
     level: () => level(audio),
     start: startFight,
+    quit: askQuit,
+    confirming: () => !$('confirm').hidden,
     show,
     /** Нажать кнопку так, как её нажал бы игрок: попадёт в очередь нажатий. */
     press(name) {

@@ -114,7 +114,21 @@ body { display: flex; }
 .bar-bones span.broken { color: #ffb3bb; border-color: var(--blood); background: rgba(193,18,31,0.18); }
 .bar-bones span.torn { color: #fff; border-color: var(--blood); background: var(--blood); text-decoration: line-through; }
 
-.clock { display: grid; gap: 4px; justify-items: center; min-width: 110px; }
+.clock { display: grid; gap: 5px; justify-items: center; min-width: 110px; }
+
+/* Выход из боя. Кнопка мелкая и стоит в шапке: под большим пальцем ей не
+   место — там играют, и промах стоил бы партии. */
+.quit {
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    padding: 3px 10px;
+    background: transparent;
+    color: var(--dim);
+    border: 1px solid #2a2226;
+    cursor: pointer;
+}
+.quit:hover { color: var(--paper); border-color: var(--you); }
 .clock-phase { font-size: 10px; letter-spacing: 0.22em; color: var(--you); }
 .clock-track { width: 100px; height: 4px; background: #1a1114; }
 .clock-fill { display: block; height: 100%; width: 100%; background: var(--paper); }
@@ -239,7 +253,10 @@ body { display: flex; }
                 <div class="bar-guard" id="guard-0"></div>
                 <div class="bar-bones" id="bones-0"></div>
             </div>
-            <div class="clock"><div class="clock-phase">ПЕРЕЛОМ</div></div>
+            <div class="clock">
+                <div class="clock-phase">ПЕРЕЛОМ</div>
+                <button class="quit" id="quit" title="Выйти в меню">ВЫЙТИ</button>
+            </div>
             <div class="bar bar--right">
                 <div class="bar-name" id="name-1">ПРОТИВНИК</div>
                 <div class="bar-track"><i class="bar-fill bar-fill--foe" id="hp-1"></i></div>
@@ -252,6 +269,7 @@ body { display: flex; }
             <canvas id="arena" width="960" height="540"></canvas>
             <div class="combo" id="combo" hidden><b id="combo-n">0</b><span>ПОПАДАНИЙ</span></div>
             <div class="verdict" id="verdict" hidden></div>
+            <div class="verdict" id="confirm" hidden></div>
         </div>
 
         <p class="log" id="log">Выбирай вслепую. Он выбирает одновременно.</p>
@@ -3127,6 +3145,46 @@ function show(name) {
     if (running) last = performance.now();
 }
 
+/**
+ * Выход из боя.
+ *
+ * Кнопки не было вовсе — из начатого боя нельзя было выйти до чьей-нибудь
+ * победы. Это хуже, чем выход без предупреждения: игрок заперт.
+ *
+ * Спрашиваем, только если бой идёт: после победы терять нечего. И проверять
+ * надо обе половины — «нет» обязан удерживать, «да» обязан выпускать;
+ * правка, которая спрашивает и не выпускает, хуже болезни.
+ */
+$('quit').addEventListener('click', () => askQuit());
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && running) askQuit();
+});
+
+function askQuit() {
+    if (!fight || fight.over) {
+        show('menu');
+        return false;
+    }
+    const node = $('confirm');
+    if (!node.hidden) return true;
+    node.innerHTML = '';
+    const h = document.createElement('h3');
+    h.textContent = 'ВЫЙТИ?';
+    const p = document.createElement('p');
+    p.textContent = 'Бой не доигран — он не сохраняется, и вернуться в него будет нельзя.';
+    const stay = document.createElement('button');
+    stay.className = 'mbtn mbtn--primary';
+    stay.textContent = 'ОСТАТЬСЯ';
+    stay.addEventListener('click', () => { node.hidden = true; });
+    const leave = document.createElement('button');
+    leave.className = 'mbtn';
+    leave.textContent = 'ВЫЙТИ В МЕНЮ';
+    leave.addEventListener('click', () => { node.hidden = true; show('menu'); });
+    node.append(h, p, stay, leave);
+    node.hidden = false;
+    return true;
+}
+
 $('go-fight').addEventListener('click', () => startFight());
 $('go-learn').addEventListener('click', () => show('learn'));
 $('learn-back').addEventListener('click', () => show('menu'));
@@ -3138,6 +3196,7 @@ function startFight() {
     fight.arenaArt = ART.arena;
     mind = makeMind();
     $('verdict').hidden = true;
+    $('confirm').hidden = true;
     show('fight');
 }
 
@@ -3259,6 +3318,8 @@ globalThis.PERELOM = {
     /** Уровень сигнала: под `?тихо` обязан быть ровно ноль. */
     level: () => level(audio),
     start: startFight,
+    quit: askQuit,
+    confirming: () => !$('confirm').hidden,
     show,
     /** Нажать кнопку так, как её нажал бы игрок: попадёт в очередь нажатий. */
     press(name) {
