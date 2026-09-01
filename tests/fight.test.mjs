@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { STATE, TUNE, createFight, optionsFor, other, stepFrame } from '../src/fight.js';
-import { ACTION, lengthOf } from '../src/rules.js';
+import { CATCHUP_FLOOR, STATE, TUNE, createFight, optionsFor, other, stepFrame, tick } from '../src/fight.js';
+import { ACTION, FPS, lengthOf } from '../src/rules.js';
 import { BROKEN } from '../src/body.js';
 import { centerOf, heightOf } from '../src/physics.js';
 
@@ -270,6 +270,26 @@ test('сломанный позвоночник отнимает бросок', 
     place(fight, 70);
     drive(fight, 26, once({ grab: true }));
     assert.equal(fight.fighters[1].body.hp, 100, 'сломанный позвоночник не должен бросать вовсе');
+});
+
+test('порог догона записан верно и меряется, а не выводится', () => {
+    // У цикла есть ограничитель догона, и у него есть цена: ниже порога
+    // игровое время отстаёт, а догнать нечем — окна разъезжаются все разом,
+    // и это выглядит как сломанный баланс, хотя сломана среда.
+    //
+    // Число обязано быть замеренным, а не записанным: поменяют шаг или
+    // ограничитель — тест покраснеет, а не тихо соврёт.
+    const прогон = (fps) => {
+        const fight = createFight({ seed: 1 });
+        for (let i = 0; i < fps; i += 1) tick(fight, 1 / fps, [still, still]);
+        return fight.frame;
+    };
+
+    assert.equal(CATCHUP_FLOOR, FPS / TUNE.maxCatchUpSteps);
+    assert.equal(прогон(Math.ceil(CATCHUP_FLOOR)), FPS,
+        `на пороге ${CATCHUP_FLOOR} кадров игровое время обязано поспевать`);
+    assert.ok(прогон(Math.floor(CATCHUP_FLOOR) - 2) < FPS,
+        'ниже порога игровое время обязано отставать — иначе ограничителя нет');
 });
 
 test('бой доигрывается до победителя и не зависает', () => {
