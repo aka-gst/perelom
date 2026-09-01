@@ -166,7 +166,7 @@ src/main.js      экраны, ввод, цикл, интерфейс
 ```
 
 `probe.html` — щуп: рисует отдельные моменты боя без игрового цикла.
-`ART.md` — задание на графику, `assets/reference/skeleton.svg` — эталон
+`docs/ART.md` — задание на графику, `assets/reference/skeleton.svg` — эталон
 скелета, собирается из кода командой `node tools/reference.mjs`.
 
 ## Звук
