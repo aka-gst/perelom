@@ -182,8 +182,15 @@ $('go-fight').addEventListener('click', () => startFight());
 $('go-learn').addEventListener('click', () => show('learn'));
 $('learn-back').addEventListener('click', () => show('menu'));
 
-function startFight() {
-    fight = createFight({ seed: (Math.random() * 1e9) | 0 });
+function startFight(seed) {
+    /*
+     * Зерно можно задать — и для замеров это обязательно.
+     *
+     * Без него два прогона идут по разным зёрнам, противник ведёт себя
+     * иначе, и разошедшиеся числа читаются как «замер зависит от времени».
+     * Я на этом и споткнулся, проверяя устойчивость к частоте кадров.
+     */
+    fight = createFight({ seed: Number.isFinite(seed) ? seed : (Math.random() * 1e9) | 0 });
     fight.fighters[0].art = ART.zhila;
     fight.fighters[1].art = ART.kostolom;
     fight.arenaArt = ART.arena;
@@ -310,6 +317,7 @@ globalThis.PERELOM = {
     get audio() { return audio; },
     /** Уровень сигнала: под `?тихо` обязан быть ровно ноль. */
     level: () => level(audio),
+    /** `start(42)` — воспроизводимый бой. Без зерна каждый раз новый. */
     start: startFight,
     quit: askQuit,
     confirming: () => !$('confirm').hidden,
