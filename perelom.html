@@ -220,6 +220,7 @@ body { display: flex; }
             <li><b>← →</b> ходить. <b>Шаг назад — это блок</b>, отдельной кнопки нет: за защиту всегда платишь позицией.</li>
             <li><b>↑</b> прыжок, <b>двойное нажатие</b> в сторону — рывок.</li>
             <li><b>J</b> рука, <b>K</b> нога, <b>L</b> бросок. С зажатым <b>Shift</b> — перехват руки и перехват ноги.</li>
+            <li>С зажатым <b>↓</b> — <b>апперкот</b> (J) и <b>подсечка</b> (K). Три кнопки, три жеста: новых клавиш нет намеренно.</li>
         </ul>
         <h2 class="title title--sm">ТРЕУГОЛЬНИК</h2>
         <ul class="rules">
@@ -277,11 +278,11 @@ body { display: flex; }
         <div class="pad" id="pad">
             <button class="key" data-button="hand">
                 <span class="key-name">РУКА</span>
-                <span class="key-hint"><i>J</i><i>быстрая, ближняя</i></span>
+                <span class="key-hint"><i>J</i><i>↓J — апперкот</i></span>
             </button>
             <button class="key" data-button="foot">
                 <span class="key-name">НОГА</span>
-                <span class="key-hint"><i>K</i><i>долгая, дальняя</i></span>
+                <span class="key-hint"><i>K</i><i>↓K — подсечка</i></span>
             </button>
             <button class="key" data-button="grab">
                 <span class="key-name">БРОСОК</span>
@@ -291,7 +292,7 @@ body { display: flex; }
 
         <p class="keys">
             <b>← →</b> ходить · шаг назад — блок · <b>↑</b> прыжок · двойное нажатие — рывок ·
-            <b>J K L</b> рука, нога, бросок · с <b>Shift</b> — перехват
+            <b>J K L</b> рука, нога, бросок · с <b>Shift</b> — перехват · с <b>↓</b> — апперкот и подсечка
         </p>
     </section>
 
@@ -344,6 +345,7 @@ const ACTION = {
         kind: 'strike',
         name: 'РУКА',
         button: 'hand',
+        gesture: 'push',
         /** Кадры до того, как удар станет опасным. Их и читает противник. */
         startup: 7,
         /** Сколько кадров удар опасен. */
@@ -376,6 +378,7 @@ const ACTION = {
         kind: 'strike',
         name: 'НОГА',
         button: 'foot',
+        gesture: 'push',
         startup: 13,
         active: 4,
         recovery: 21,
@@ -391,6 +394,7 @@ const ACTION = {
         kind: 'grab',
         name: 'БРОСОК',
         button: 'grab',
+        gesture: 'push',
         // Разгон обязан быть длиннее, чем у любого удара: иначе грань
         // «удар бьёт бросок» не работает, и бросок становится ответом на всё.
         startup: 16,
@@ -403,11 +407,62 @@ const ACTION = {
         joint: 'handF',
         tell: '#c77dff',
     },
+    upper: {
+        id: 'upper',
+        kind: 'strike',
+        name: 'АППЕРКОТ',
+        button: 'hand',
+        gesture: 'low',
+        /**
+         * Второй вход в джагл — и единственный, который не требует
+         * выигранного чтения. Перехват подбрасывает, но случается редко:
+         * надо и успеть, и угадать тип. Апперкот даёт тот же вход за
+         * другую цену — за долгий разгон и очень долгий отходняк.
+         */
+        launches: true,
+        startup: 14,
+        active: 4,
+        recovery: 26,
+        damage: 9,
+        impulse: 420,
+        reach: 30,
+        lunge: 6,
+        joint: 'handF',
+        tell: '#ff4d6d',
+    },
+    sweep: {
+        id: 'sweep',
+        kind: 'strike',
+        name: 'ПОДСЕЧКА',
+        button: 'foot',
+        gesture: 'low',
+        /**
+         * Быстрый низкий удар со сбиванием с ног.
+         *
+         * Замысел был другой — «достаёт отступающего», — но замер его не
+         * подтвердил: подсечка бьёт на 164, а нога на 181, то есть
+         * отступающего лучше достаёт как раз нога. Настоящая её роль в
+         * скорости: 11 кадров разгона против 13 у ноги, и сбитый с ног
+         * теряет время на подъём. Продолжения при этом нет — сбитый не
+         * подброшенный, джагл из неё не растёт.
+         */
+        knocks: true,
+        startup: 11,
+        active: 4,
+        recovery: 24,
+        damage: 8,
+        impulse: 460,
+        reach: 32,
+        lunge: 22,
+        joint: 'footF',
+        tell: '#a3e635',
+    },
     catchHand: {
         id: 'catchHand',
         kind: 'catch',
         name: 'ПЕРЕХВАТ РУКИ',
         button: 'hand',
+        gesture: 'pull',
         catches: 'hand',
         startup: 3,
         /** Окно перехвата. Тринадцать кадров — примерно пятая секунды. */
@@ -420,6 +475,7 @@ const ACTION = {
         kind: 'catch',
         name: 'ПЕРЕХВАТ НОГИ',
         button: 'foot',
+        gesture: 'pull',
         catches: 'foot',
         startup: 3,
         active: 13,
@@ -429,6 +485,17 @@ const ACTION = {
 };
 
 const ACTIONS = Object.keys(ACTION);
+
+/**
+ * Действие по кнопке и жесту. Жеста три: толчок, тяга и низ.
+ *
+ * Новых кнопок не заводим намеренно. Разнообразие приёмов не должно съесть
+ * понятность: три кнопки помнятся, шесть — уже нет, а каждый лишний приём,
+ * про который непонятно, попал он или нет, умножает непонятность.
+ */
+function actionFor(button, gesture) {
+    return ACTIONS.find((id) => ACTION[id].button === button && ACTION[id].gesture === gesture) ?? null;
+}
 const STRIKES = ACTIONS.filter((id) => ACTION[id].kind === 'strike');
 const CATCHES = ACTIONS.filter((id) => ACTION[id].kind === 'catch');
 
@@ -516,7 +583,9 @@ const BONES = {
          */
         strength: 620,
         /** Что перелом вычёркивает из треугольника. */
-        disables: ['hand', 'catchHand'],
+        // Апперкот тоже рукой: перелом обязан отнимать ВСЁ, что ею делают,
+        // иначе несущее правило дырявое.
+        disables: ['hand', 'catchHand', 'upper'],
         /** Можно ли оторвать. Позвоночник и череп — нет, это уже конец боя. */
         tearable: true,
     },
@@ -524,7 +593,7 @@ const BONES = {
         id: 'leg',
         name: 'НОГА',
         strength: 700,
-        disables: ['foot', 'catchFoot'],
+        disables: ['foot', 'catchFoot', 'sweep'],
         tearable: true,
     },
     ribs: {
@@ -982,9 +1051,29 @@ const POSES = {
         elbowF: [4, 20], handF: [-6, 50], elbowB: [-11, 13], handB: [-40, 26],
         kneeF: [22, -37], footF: [22, -78], kneeB: [-12, -47], footB: [-38, -78],
     },
+    windUpper: {
+        pelvis: [-2, -20], chest: [-4, 10], neck: [-4, 32], head: [0, 49],
+        elbowF: [-33, 15], handF: [-6, -2], elbowB: [-35, 17], handB: [-4, 26],
+        kneeF: [37, -38], footF: [30, -78], kneeB: [4, -63], footB: [-34, -78],
+    },
+    hitUpper: {
+        pelvis: [6, 6], chest: [10, 36], neck: [12, 58], head: [16, 75],
+        elbowF: [45, 50], handF: [40, 82], elbowB: [7, 24], handB: [-24, 18],
+        kneeF: [21, -34], footF: [34, -73], kneeB: [-10, -34], footB: [-26, -72],
+    },
+    windSweep: {
+        pelvis: [-4, -26], chest: [-8, 4], neck: [-10, 26], head: [-8, 43],
+        elbowF: [6, -4], handF: [23, -32], elbowB: [-17, -8], handB: [-38, -32],
+        kneeF: [33, -49], footF: [4, -78], kneeB: [2, -69], footB: [-38, -78],
+    },
+    hitSweep: {
+        pelvis: [0, -34], chest: [-11, -6], neck: [-17, 15], head: [-17, 33],
+        elbowF: [-1, -15], handF: [16, -42], elbowB: [-31, -16], handB: [-45, -45],
+        kneeF: [40, -50], footF: [77, -67], kneeB: [1, -77], footB: [-40, -78],
+    },
     hurtHigh: {
         pelvis: [-4, -2], chest: [-12, 27], neck: [-21, 47], head: [-36, 56],
-        elbowF: [4, 24], handF: [-8, 54], elbowB: [-26, 13], handB: [-58, 12],
+        elbowF: [5, 25], handF: [-8, 54], elbowB: [-26, 13], handB: [-58, 12],
         kneeF: [21, -37], footF: [20, -78], kneeB: [-13, -44], footB: [-36, -78],
     },
     hurtLow: {
@@ -1030,6 +1119,8 @@ function lerpPose(a, b, k) {
  */
 const ATTACK_POSES = {
     hand: { wind: 'windHand', hit: 'hitHand' },
+    upper: { wind: 'windUpper', hit: 'hitUpper' },
+    sweep: { wind: 'windSweep', hit: 'hitSweep' },
     foot: { wind: 'windFoot', hit: 'hitFoot' },
     grab: { wind: 'windGrab', hit: 'hitGrab' },
     catchHand: { wind: 'guard', hit: 'catch' },
@@ -1842,9 +1933,12 @@ function attackFrame(fight, f, input) {
 
 function startAction(fight, f, input, inAir = false) {
     const options = availableActions(f.body, Object.keys(ACTION));
-    const wants = input.pull
-        ? (input.hand ? 'catchHand' : input.foot ? 'catchFoot' : null)
-        : (input.hand ? 'hand' : input.foot ? 'foot' : input.grab ? 'grab' : null);
+    const button = input.hand ? 'hand' : input.foot ? 'foot' : input.grab ? 'grab' : null;
+    if (!button) return false;
+    // Тяга сильнее низа: перехват — осознанный жест, и если зажаты оба,
+    // игрок скорее всего целился в него.
+    const gesture = input.pull ? 'pull' : input.down ? 'low' : 'push';
+    const wants = actionFor(button, gesture) ?? actionFor(button, 'push');
     if (!wants) return false;
     // В воздухе не хватают и не перехватывают: не за что зацепиться.
     if (inAir && ACTION[wants].kind !== 'strike') return false;
@@ -2037,6 +2131,19 @@ function land_hit(fight, att, def, spec, found) {
         const away = spec.id === 'hand' ? 35 : 640;
         goRagdoll(def.sk, away * att.facing * decay, up * decay, 3 * decay);
         note(fight, `${def.juggleHits} попаданий подряд`);
+    } else if (spec.launches) {
+        // Апперкот подбрасывает сам — второй вход в джагл, за долгий отходняк.
+        launch(fight, att, def);
+        if (result.broke) startXray(fight, def, found.bone, result);
+        checkDeath(fight, def);
+        return;
+    } else if (spec.knocks) {
+        // Подсечка сбивает с ног, но не подбрасывает: продолжения нет.
+        banner(fight, 'СБИТ С НОГ', '#a3e635');
+        knockDown(fight, att, def);
+        if (result.broke) startXray(fight, def, found.bone, result);
+        checkDeath(fight, def);
+        return;
     } else if (def.state === STATE.jump || (def.state === STATE.attack && def.airAttack)) {
         launch(fight, att, def);
         return;
@@ -2073,6 +2180,19 @@ function launch(fight, from, victim) {
     fight.freeze = TUNE.hitstop.launch;
     fight.shake = 12;
     note(fight, `${victim.name} в воздухе`);
+}
+
+/** Сбить с ног: тело валится, но не взлетает — джагла из этого нет. */
+function knockDown(fight, from, victim) {
+    victim.state = STATE.down;
+    victim.frame = 0;
+    victim.juggleHits = 0;
+    victim.slamPending = true;
+    victim.sk.mode = 'ragdoll';
+    applyPose(victim.sk, POSES.hurt, victim.x, victim.groundY - victim.y);
+    goRagdoll(victim.sk, 260 * from.facing, -170, 4.2 * from.facing);
+    fight.freeze = TUNE.hitstop.throw;
+    fight.shake = 12;
 }
 
 function slam(fight, from, victim, spec) {
@@ -2318,6 +2438,8 @@ const MEMORY = 10;
 const TEMPER = {
     /** Дистанция, на которой ему хочется стоять. */
     spacing: 96,
+    /** Как часто он берётся за долгие приёмы: апперкот и подсечку. */
+    boldness: 0.5,
     /** Насколько охотно лезет вперёд. */
     aggression: 0.55,
     /** Как резко наказывает замеченную привычку. */
@@ -2371,6 +2493,7 @@ function controlFrame(mind, fight, side, rng) {
     if (me.state !== STATE.idle && me.state !== STATE.walk && me.state !== STATE.jump) return input;
 
     const gap = Math.abs(foe.x - me.x);
+    const want = mind.temper.spacing;
     const toward = foe.x > me.x ? 'right' : 'left';
     const away = toward === 'right' ? 'left' : 'right';
     const options = optionsFor(me);
@@ -2403,17 +2526,35 @@ function controlFrame(mind, fight, side, rng) {
         return input;
     }
 
-    // Наказание за промах: противник в отходняке — влезаем.
+    // Наказание за промах: противник в отходняке — влезаем. Апперкот тут
+    // и нужен: отходняк — единственное окно, где долгий приём безопасен, а
+    // взамен даёт вход в джагл без выигранного чтения.
     const whiffing = seen.state === STATE.attack && seen.action
         && seen.frame > ACTION[seen.action].startup + ACTION[seen.action].active;
-    if (whiffing && gap < 108 && mind.cool === 0 && options.includes('foot')) {
-        mind.cool = 20;
+    if (whiffing && gap < 108 && mind.cool === 0) {
+        mind.cool = 24;
+        if (options.includes('upper') && gap < 84 && rng() < mind.temper.boldness) {
+            input.hand = true;
+            input.down = true;
+        } else if (options.includes('foot')) {
+            input.foot = true;
+        }
+        return input;
+    }
+
+    // Отступающего достаёт подсечка: у неё длинный выпад, и она сбивает с
+    // ног. Без неё вечный шаг назад ничем не наказан, кроме броска, а тот
+    // берёт только вплотную.
+    const retreating = seen.state === STATE.walk && Math.abs(seen.x - me.x) > gap - 4;
+    if (retreating && gap > want - 10 && gap < 150 && mind.cool === 0
+        && options.includes('sweep') && rng() < mind.temper.boldness * 0.5) {
+        mind.cool = 28;
         input.foot = true;
+        input.down = true;
         return input;
     }
 
     // Нейтралка: держим дистанцию и время от времени лезем.
-    const want = mind.temper.spacing;
     if (gap > want + 26) {
         input[toward] = true;
         if (gap > 190 && rng() < 0.03) input[toward === 'right' ? 'dashRight' : 'dashLeft'] = true;

@@ -25,6 +25,7 @@ export const ACTION = {
         kind: 'strike',
         name: 'РУКА',
         button: 'hand',
+        gesture: 'push',
         /** Кадры до того, как удар станет опасным. Их и читает противник. */
         startup: 7,
         /** Сколько кадров удар опасен. */
@@ -57,6 +58,7 @@ export const ACTION = {
         kind: 'strike',
         name: 'НОГА',
         button: 'foot',
+        gesture: 'push',
         startup: 13,
         active: 4,
         recovery: 21,
@@ -72,6 +74,7 @@ export const ACTION = {
         kind: 'grab',
         name: 'БРОСОК',
         button: 'grab',
+        gesture: 'push',
         // Разгон обязан быть длиннее, чем у любого удара: иначе грань
         // «удар бьёт бросок» не работает, и бросок становится ответом на всё.
         startup: 16,
@@ -84,11 +87,62 @@ export const ACTION = {
         joint: 'handF',
         tell: '#c77dff',
     },
+    upper: {
+        id: 'upper',
+        kind: 'strike',
+        name: 'АППЕРКОТ',
+        button: 'hand',
+        gesture: 'low',
+        /**
+         * Второй вход в джагл — и единственный, который не требует
+         * выигранного чтения. Перехват подбрасывает, но случается редко:
+         * надо и успеть, и угадать тип. Апперкот даёт тот же вход за
+         * другую цену — за долгий разгон и очень долгий отходняк.
+         */
+        launches: true,
+        startup: 14,
+        active: 4,
+        recovery: 26,
+        damage: 9,
+        impulse: 420,
+        reach: 30,
+        lunge: 6,
+        joint: 'handF',
+        tell: '#ff4d6d',
+    },
+    sweep: {
+        id: 'sweep',
+        kind: 'strike',
+        name: 'ПОДСЕЧКА',
+        button: 'foot',
+        gesture: 'low',
+        /**
+         * Быстрый низкий удар со сбиванием с ног.
+         *
+         * Замысел был другой — «достаёт отступающего», — но замер его не
+         * подтвердил: подсечка бьёт на 164, а нога на 181, то есть
+         * отступающего лучше достаёт как раз нога. Настоящая её роль в
+         * скорости: 11 кадров разгона против 13 у ноги, и сбитый с ног
+         * теряет время на подъём. Продолжения при этом нет — сбитый не
+         * подброшенный, джагл из неё не растёт.
+         */
+        knocks: true,
+        startup: 11,
+        active: 4,
+        recovery: 24,
+        damage: 8,
+        impulse: 460,
+        reach: 32,
+        lunge: 22,
+        joint: 'footF',
+        tell: '#a3e635',
+    },
     catchHand: {
         id: 'catchHand',
         kind: 'catch',
         name: 'ПЕРЕХВАТ РУКИ',
         button: 'hand',
+        gesture: 'pull',
         catches: 'hand',
         startup: 3,
         /** Окно перехвата. Тринадцать кадров — примерно пятая секунды. */
@@ -101,6 +155,7 @@ export const ACTION = {
         kind: 'catch',
         name: 'ПЕРЕХВАТ НОГИ',
         button: 'foot',
+        gesture: 'pull',
         catches: 'foot',
         startup: 3,
         active: 13,
@@ -110,6 +165,17 @@ export const ACTION = {
 };
 
 export const ACTIONS = Object.keys(ACTION);
+
+/**
+ * Действие по кнопке и жесту. Жеста три: толчок, тяга и низ.
+ *
+ * Новых кнопок не заводим намеренно. Разнообразие приёмов не должно съесть
+ * понятность: три кнопки помнятся, шесть — уже нет, а каждый лишний приём,
+ * про который непонятно, попал он или нет, умножает непонятность.
+ */
+export function actionFor(button, gesture) {
+    return ACTIONS.find((id) => ACTION[id].button === button && ACTION[id].gesture === gesture) ?? null;
+}
 export const STRIKES = ACTIONS.filter((id) => ACTION[id].kind === 'strike');
 export const CATCHES = ACTIONS.filter((id) => ACTION[id].kind === 'catch');
 

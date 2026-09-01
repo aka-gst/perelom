@@ -20,7 +20,7 @@
  * Модуль чистый: ни DOM, ни канваса, ни случайности сверх переданного зерна.
  */
 
-import { ACTION, CHIP_SCALE, COUNTER_SCALE, FPS, lengthOf, outcomeOf } from './rules.js';
+import { ACTION, CHIP_SCALE, COUNTER_SCALE, FPS, actionFor, lengthOf, outcomeOf } from './rules.js';
 import { BONES, applyImpulse, availableActions, makeBody } from './body.js';
 import {
     applyPose, boneNear, centerOf, createSkeleton, distanceToBox, goRagdoll, heightOf,
@@ -360,9 +360,12 @@ function attackFrame(fight, f, input) {
 
 function startAction(fight, f, input, inAir = false) {
     const options = availableActions(f.body, Object.keys(ACTION));
-    const wants = input.pull
-        ? (input.hand ? 'catchHand' : input.foot ? 'catchFoot' : null)
-        : (input.hand ? 'hand' : input.foot ? 'foot' : input.grab ? 'grab' : null);
+    const button = input.hand ? 'hand' : input.foot ? 'foot' : input.grab ? 'grab' : null;
+    if (!button) return false;
+    // Тяга сильнее низа: перехват — осознанный жест, и если зажаты оба,
+    // игрок скорее всего целился в него.
+    const gesture = input.pull ? 'pull' : input.down ? 'low' : 'push';
+    const wants = actionFor(button, gesture) ?? actionFor(button, 'push');
     if (!wants) return false;
     // В воздухе не хватают и не перехватывают: не за что зацепиться.
     if (inAir && ACTION[wants].kind !== 'strike') return false;
@@ -555,6 +558,19 @@ function land_hit(fight, att, def, spec, found) {
         const away = spec.id === 'hand' ? 35 : 640;
         goRagdoll(def.sk, away * att.facing * decay, up * decay, 3 * decay);
         note(fight, `${def.juggleHits} попаданий подряд`);
+    } else if (spec.launches) {
+        // Апперкот подбрасывает сам — второй вход в джагл, за долгий отходняк.
+        launch(fight, att, def);
+        if (result.broke) startXray(fight, def, found.bone, result);
+        checkDeath(fight, def);
+        return;
+    } else if (spec.knocks) {
+        // Подсечка сбивает с ног, но не подбрасывает: продолжения нет.
+        banner(fight, 'СБИТ С НОГ', '#a3e635');
+        knockDown(fight, att, def);
+        if (result.broke) startXray(fight, def, found.bone, result);
+        checkDeath(fight, def);
+        return;
     } else if (def.state === STATE.jump || (def.state === STATE.attack && def.airAttack)) {
         launch(fight, att, def);
         return;
@@ -591,6 +607,19 @@ function launch(fight, from, victim) {
     fight.freeze = TUNE.hitstop.launch;
     fight.shake = 12;
     note(fight, `${victim.name} в воздухе`);
+}
+
+/** Сбить с ног: тело валится, но не взлетает — джагла из этого нет. */
+function knockDown(fight, from, victim) {
+    victim.state = STATE.down;
+    victim.frame = 0;
+    victim.juggleHits = 0;
+    victim.slamPending = true;
+    victim.sk.mode = 'ragdoll';
+    applyPose(victim.sk, POSES.hurt, victim.x, victim.groundY - victim.y);
+    goRagdoll(victim.sk, 260 * from.facing, -170, 4.2 * from.facing);
+    fight.freeze = TUNE.hitstop.throw;
+    fight.shake = 12;
 }
 
 function slam(fight, from, victim, spec) {

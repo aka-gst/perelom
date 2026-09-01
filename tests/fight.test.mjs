@@ -140,13 +140,27 @@ test('край арены калечит: нога выбивает тело в 
     assert.ok(fight.log.some((line) => line.includes('о скалу')), `в логе нет удара о скалу: ${fight.log.join(' | ')}`);
 });
 
-test('сломанной рукой нельзя ни ударить, ни перехватить', () => {
-    const fight = createFight({ seed: 13 });
-    fight.fighters[0].body.bones.arm.state = BROKEN;
-    assert.deepEqual(optionsFor(fight.fighters[0]).sort(), ['catchFoot', 'foot', 'grab']);
-    place(fight, 80);
-    drive(fight, 20, once({ hand: true }));
-    assert.equal(fight.fighters[1].body.hp, 100, 'сломанная рука не должна бить вовсе');
+test('перелом отнимает всё, что делают этой конечностью', () => {
+    // Апперкот и подсечка обязаны подчиняться тому же правилу, что и
+    // остальное: перелом отнимает ВСЁ, что делают этой конечностью. Иначе
+    // несущее правило игры дырявое — руку сломали, а она бьёт апперкотом.
+    const рука = createFight({ seed: 13 });
+    рука.fighters[0].body.bones.arm.state = BROKEN;
+    assert.deepEqual(optionsFor(рука.fighters[0]).sort(), ['catchFoot', 'foot', 'grab', 'sweep']);
+    place(рука, 80);
+    drive(рука, 20, once({ hand: true }));
+    assert.equal(рука.fighters[1].body.hp, 100, 'сломанная рука не бьёт');
+    drive(рука, 26, once({ hand: true, down: true }));
+    assert.equal(рука.fighters[1].body.hp, 100, 'и апперкотом тоже не бьёт');
+
+    const нога = createFight({ seed: 13 });
+    нога.fighters[0].body.bones.leg.state = BROKEN;
+    assert.deepEqual(optionsFor(нога.fighters[0]).sort(), ['catchHand', 'grab', 'hand', 'upper']);
+    place(нога, 140);
+    drive(нога, 26, once({ foot: true }));
+    assert.equal(нога.fighters[1].body.hp, 100, 'сломанная нога не бьёт');
+    drive(нога, 26, once({ foot: true, down: true }));
+    assert.equal(нога.fighters[1].body.hp, 100, 'и подсечкой тоже не бьёт');
 });
 
 test('от руки голова уходит назад, от ноги боец складывается', () => {
@@ -270,6 +284,42 @@ test('сломанный позвоночник отнимает бросок', 
     place(fight, 70);
     drive(fight, 26, once({ grab: true }));
     assert.equal(fight.fighters[1].body.hp, 100, 'сломанный позвоночник не должен бросать вовсе');
+});
+
+test('апперкот подбрасывает сам — второй вход в джагл', () => {
+    // Перехват подбрасывает, но случается редко: надо и успеть, и угадать
+    // тип. Апперкот даёт тот же вход за другую цену — за долгий разгон и
+    // очень долгий отходняк.
+    const fight = createFight({ seed: 3 });
+    place(fight, 80);
+    drive(fight, 22, once({ hand: true, down: true }));
+    assert.equal(fight.fighters[1].state, STATE.launched, 'апперкот обязан подбрасывать');
+    assert.equal(fight.fighters[1].sk.mode, 'ragdoll');
+    // И цена: отходняк у него дольше, чем у обычного удара, заметно.
+    assert.ok(ACTION.upper.recovery > ACTION.hand.recovery * 2,
+        'дешёвый вход в джагл обесценил бы перехват');
+    assert.ok(ACTION.upper.startup > ACTION.hand.startup);
+});
+
+test('подсечка быстрее ноги и сбивает с ног, но не подбрасывает', () => {
+    // Замысел был «достаёт отступающего», но замер его не подтвердил:
+    // подсечка бьёт на 164, нога на 181. Роль у неё в скорости, и тест
+    // держит именно то, что подтвердилось, а не то, что задумывалось.
+    assert.ok(ACTION.sweep.startup < ACTION.foot.startup, 'подсечка обязана быть быстрее ноги');
+
+    const открытый = createFight({ seed: 3 });
+    place(открытый, 130);
+    drive(открытый, 24, once({ foot: true, down: true }));
+    assert.equal(открытый.fighters[1].state, STATE.down, 'открытого подсечка обязана сбить');
+    assert.notEqual(открытый.fighters[1].state, STATE.launched, 'сбитый — не подброшенный');
+
+    // А закрывшегося — не сбивает: подсечка блокируется, как и всё
+    // остальное. Задумывалась она ответом на вечное отступление, но им не
+    // стала, и делать её непробиваемой значило бы обесценить блок.
+    const закрытый = createFight({ seed: 3 });
+    place(закрытый, 130);
+    drive(закрытый, 24, once({ foot: true, down: true }), () => input({ right: true }));
+    assert.notEqual(закрытый.fighters[1].state, STATE.down, 'блок обязан держать и подсечку');
 });
 
 test('порог догона записан верно и меряется, а не выводится', () => {
