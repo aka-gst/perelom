@@ -14,12 +14,33 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const bundle = execFileSync('node', [join(root, 'tools/bundle.mjs')], {
     cwd: root,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
+});
+
+test('файл в дереве совпадает со свежей сборкой', () => {
+    /*
+     * Самая дорогая проверка этого файла, и её тут не было.
+     *
+     * Все проверки ниже собирают сборку заново и спрашивают её. А наружу
+     * едет `perelom.html` из дерева — и он отставал: арт второго бойца
+     * приехал в `c815b8a`, а сборку я пересобрать забыл. Соседняя сессия
+     * пошла снимать кадр по моему же рецепту и увидела вчерашние палки,
+     * при том что арт в дереве был и все проверки были зелёными.
+     *
+     * То есть проверки смотрели на соседа, а не на предмет: на вывод
+     * сборщика вместо файла, который получает человек.
+     */
+    const вДереве = readFileSync(join(root, 'perelom.html'), 'utf8');
+    assert.equal(вДереве.length, bundle.length,
+        'perelom.html отстал от исходников — пересобрать: npm run bundle');
+    assert.ok(вДереве === bundle,
+        'perelom.html расходится со сборкой при том же размере — пересобрать');
 });
 
 test('сборка объявляет кодировку до первого русского слова', () => {
