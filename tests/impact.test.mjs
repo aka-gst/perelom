@@ -31,9 +31,14 @@ function play(gap, mine, theirs = still, frames = 26) {
     for (let i = 0; i < frames; i += 1) {
         stepFrame(fight, [mine, theirs]);
         if (!shot && (fight.sparks.length || fight.freeze)) {
+            const s = fight.sparks[0];
             shot = {
                 искр: fight.sparks.length,
-                вид: fight.sparks[0]?.kind ?? null,
+                вид: s?.kind ?? null,
+                // Направление берём то, которое ПЕРЕДАЛА ИГРА, а не своё:
+                // проверка с подставленным направлением меряет чистую
+                // функцию и молчит, когда игра передаёт не то.
+                ход: s ? sparkDrift(s.kind, s.dir) : 0,
                 подсветка: fight.fighters[1].flash > 0,
                 замирание: fight.freeze,
             };
@@ -41,6 +46,16 @@ function play(gap, mine, theirs = still, frames = 26) {
     }
     return shot ?? { искр: 0, вид: null, подсветка: false, замирание: 0 };
 }
+
+test('направление вспышки задаётся правильно самой игрой', () => {
+    // Проверка поломкой показала, что тест ниже ничего не стерёг: он звал
+    // sparkDrift с подставленным направлением и потому молчал, когда игра
+    // передавала не то. Мера смотрела на соседнее свойство.
+    const hit = play(100, once({ hand: true }));
+    const block = play(100, once({ hand: true }), () => input({ right: true }));
+    assert.ok(Math.sign(hit.ход) !== Math.sign(block.ход),
+        `игра обязана разводить исходы направлением: ${hit.ход.toFixed(1)} и ${block.ход.toFixed(1)}`);
+});
 
 test('исход читается направлением искр, а не цветом и не цифрой', () => {
     // Приём подсказан соседним проектом: цвет разводит исходы плохо, если
@@ -73,6 +88,10 @@ test('три исхода различаются, даже если закрыт
     assert.equal(h.вид, 'hit');
     assert.equal(b.вид, 'block');
     assert.equal(m.искр, 0, 'промах не даёт искр вовсе — и это тоже сигнал');
+
+    // Признак нулевой и главный: направление, которое игра передала сама.
+    assert.ok(h.ход > 15, `попадание уносит искры вперёд, а не ${h.ход.toFixed(1)}`);
+    assert.ok(b.ход < -15, `звон бросает искры назад, а не ${b.ход.toFixed(1)}`);
 
     // Признак первый: подсветка тела. Прошло — светится, закрыли — нет.
     assert.equal(h.подсветка, true);
