@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { STATE, TUNE, createFight, optionsFor, other, stepFrame } from '../src/fight.js';
 import { ACTION, lengthOf } from '../src/rules.js';
 import { BROKEN } from '../src/body.js';
+import { centerOf, heightOf } from '../src/physics.js';
 
 const NEUTRAL = {
     left: false, right: false, up: false, down: false,
@@ -170,6 +171,48 @@ test('от руки голова уходит назад, от ноги боец
     const head = low.fighters[1].sk.points.head;
     assert.ok(Math.abs(head.x - low.fighters[1].x) > 8 || head.y > low.fighters[1].groundY - 150,
         'тело не сложилось: реакция на попадание не видна');
+});
+
+test('лежачего не бьют — иначе комбо переезжает на землю', () => {
+    // Одно из четырёх правил, на которых разваливался джагл, и до
+    // отрицательного контроля его не стерегло ничто.
+    //
+    // Премису теста пришлось править трижды, и все три раза одинаково: я
+    // объявлял мир успокоившимся по СЛЕДСТВИЮ, а не по самому миру.
+    // Сначала бил сразу — прилетал урон от встречи с землёй. Потом ждал
+    // стабильности здоровья — но пока тело летит, здоровье тоже стоит.
+    // Потом ждал низкой высоты — но сразу после броска тело ещё у земли и
+    // только начинает лететь. Тихо — это низко И неподвижно.
+    const fight = createFight({ seed: 9 });
+    // У левого края: бросок унесёт тело вправо, где пусто. Иначе оно
+    // долетает до скалы, та законно ломает кость, и виноватым выглядит удар.
+    fight.fighters[0].x = fight.centerX - fight.wall + 60;
+    fight.fighters[1].x = fight.fighters[0].x + 70;
+    drive(fight, 1);
+    drive(fight, 24, once({ grab: true }), () => input({ right: true }));
+    const victim = fight.fighters[1];
+    assert.equal(victim.state, STATE.down, 'бросок обязан положить противника');
+
+    let quiet = 0;
+    let was = centerOf(victim.sk).x;
+    for (let i = 0; i < 240 && quiet < 8 && victim.state === STATE.down; i += 1) {
+        stepFrame(fight, [still, still]);
+        const now = centerOf(victim.sk).x;
+        quiet = heightOf(victim.sk) < 20 && Math.abs(now - was) < 0.6 ? quiet + 1 : 0;
+        was = now;
+    }
+    if (victim.state !== STATE.down) return; // встал раньше — проверять нечего
+
+    // Меряем только те кадры, пока противник ЛЕЖИТ: как встал, удар по
+    // поднимающемуся проходит законно — это окидзэмэ, а не дыра.
+    const before = victim.body.hp;
+    let hpLying = before;
+    for (let i = 0; i < 40; i += 1) {
+        stepFrame(fight, [once({ hand: true }), still]);
+        if (victim.state !== STATE.down) break;
+        hpLying = victim.body.hp;
+    }
+    assert.equal(hpLying, before, 'по лежачему урон проходить не должен');
 });
 
 test('бой доигрывается до победителя и не зависает', () => {
