@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node tools/serve.mjs",
     "test": "node --test tests/*.test.mjs",
-    "bundle": "node tools/bundle.mjs > perelom.html"
+    "bundle": "node tools/bundle.mjs > perelom.html",
+    "sverka": "node tools/sverka.mjs"
   },
   "description": "ПЕРЕЛОМ — файтинг, в котором перехват подбрасывает противника, а сломанная кость вычёркивает действие из треугольника"
 }
