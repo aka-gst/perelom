@@ -201,18 +201,70 @@ test('лежачего не бьют — иначе комбо переезжа�
         quiet = heightOf(victim.sk) < 20 && Math.abs(now - was) < 0.6 ? quiet + 1 : 0;
         was = now;
     }
-    if (victim.state !== STATE.down) return; // встал раньше — проверять нечего
+    // Никаких аварийных выходов: тест, который может решить «проверять
+    // нечего», всегда зелёный. Именно на этом он и промолчал, когда защиту
+    // лежачего вырезали целиком.
+    assert.equal(victim.state, STATE.down, 'тело обязано лежать к моменту проверки');
 
     // Меряем только те кадры, пока противник ЛЕЖИТ: как встал, удар по
     // поднимающемуся проходит законно — это окидзэмэ, а не дыра.
+    // Подводим бойца вплотную к лежащему. Без этого удар до тела просто не
+    // достаёт — оно улетело на две сотни пикселей, — и тест проходил из-за
+    // дистанции, а не из-за защиты. Четвёртая поправка премисы, и снова та
+    // же: проверял не то, что думал.
+    fight.fighters[0].x = centerOf(victim.sk).x - 60;
+    stepFrame(fight, [still, still]);
+
     const before = victim.body.hp;
     let hpLying = before;
+    let lyingFrames = 0;
     for (let i = 0; i < 40; i += 1) {
         stepFrame(fight, [once({ hand: true }), still]);
         if (victim.state !== STATE.down) break;
+        lyingFrames += 1;
         hpLying = victim.body.hp;
     }
+    // И проверяем, что проверять было что: без этого «ноль кадров лёжа»
+    // прошло бы как успех.
+    assert.ok(lyingFrames >= 12, `тело лежало всего ${lyingFrames} кадров — бить было некогда`);
     assert.equal(hpLying, before, 'по лежачему урон проходить не должен');
+});
+
+test('боец разворачивается к лежащему телу, а не к месту, где оно было', () => {
+    // Пока противник в рагдолле, его поле `x` не обновляется — двигается
+    // только скелет. Без поправки боец после дальнего броска стоял спиной
+    // к лежащему и бил в пустоту. Нашлось не глазами: проверка защиты
+    // лежачего не краснела при вырезанной защите, потому что удар до тела
+    // вообще не доходил.
+    const fight = createFight({ seed: 9 });
+    fight.fighters[0].x = fight.centerX - fight.wall + 60;
+    fight.fighters[1].x = fight.fighters[0].x + 70;
+    drive(fight, 1);
+    drive(fight, 24, once({ grab: true }), () => input({ right: true }));
+    const victim = fight.fighters[1];
+    const hunter = fight.fighters[0];
+    assert.equal(victim.state, STATE.down);
+
+    // Ставим бойца СПРАВА от улетевшего тела: по старому полю `x` тело
+    // числится слева, по скелету — оно рядом. Разворот обязан идти по телу.
+    drive(fight, 40);
+    hunter.x = centerOf(victim.sk).x + 60;
+    drive(fight, 2);
+    assert.equal(hunter.facing, -1,
+        `боец обязан повернуться к телу: тело на ${centerOf(victim.sk).x.toFixed(0)}, он на ${hunter.x.toFixed(0)}`);
+});
+
+test('сломанный позвоночник отнимает бросок', () => {
+    // Отрицательный контроль показал, что эту грань не стерёг никто:
+    // очистил `disables` у позвоночника — все проверки остались зелёными.
+    const fight = createFight({ seed: 5 });
+    assert.ok(optionsFor(fight.fighters[0]).includes('grab'));
+    fight.fighters[0].body.bones.spine.state = BROKEN;
+    assert.ok(!optionsFor(fight.fighters[0]).includes('grab'),
+        'со сломанным позвоночником не бросают');
+    place(fight, 70);
+    drive(fight, 26, once({ grab: true }));
+    assert.equal(fight.fighters[1].body.hp, 100, 'сломанный позвоночник не должен бросать вовсе');
 });
 
 test('бой доигрывается до победителя и не зависает', () => {
