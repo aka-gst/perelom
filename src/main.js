@@ -18,6 +18,7 @@ import { loadArenaArt, loadFighterArt } from './sprites.js';
 import { createAudio, level, play } from './audio.js';
 import { makeRng } from './rng.js';
 import { бойНачат, бойКончен, обучениеОткрыто } from './schet.js';
+import { витриннаяСцена } from './showcase.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -42,6 +43,8 @@ let mind = null;
 let running = false;
 let last = 0;
 let elapsed = 0;
+/** Витрина рисуется каждый кадр, но бой в ней уже рассчитан и не движется. */
+let frozenShowcase = false;
 
 /* ─────────────────────────── ввод ─────────────────────────── */
 
@@ -214,6 +217,7 @@ function startFight(seed) {
      * перехватом. Сбрасывать надо все три места, иначе починка выглядит
      * сделанной и не работает.
      */
+    frozenShowcase = false;
     held.clear();
     shiftHeld = false;
     padPull = false;
@@ -237,6 +241,14 @@ let aiControl = null;
 function frame(now) {
     requestAnimationFrame(frame);
     if (!running || !fight) return;
+    // Спрайты грузятся не одновременно с модулем. Неподвижную витрину всё
+    // равно рисуем в каждом rAF, иначе на первом кадре останется силуэтная
+    // заглушка; сам бой при этом уже остановлен и не получает новых входов.
+    if (frozenShowcase) {
+        paint();
+        hud();
+        return;
+    }
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     elapsed += dt;
@@ -410,4 +422,15 @@ globalThis.PERELOM = {
 };
 
 show('menu');
+const requestedShowcase = new URLSearchParams(window.location.search).get('сцена')
+    ?? new URLSearchParams(window.location.search).get('scene');
+const showcase = витриннаяСцена(requestedShowcase);
+if (showcase) {
+    fight = showcase;
+    fight.fighters[0].art = ART.zhila;
+    fight.fighters[1].art = ART.kostolom;
+    fight.arenaArt = ART.arena;
+    frozenShowcase = true;
+    show('fight');
+}
 requestAnimationFrame(frame);
