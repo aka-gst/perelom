@@ -42,7 +42,9 @@ export function manifest() {
                 group: 'части тела',
                 wave: fighter.id === 'zhila' ? 1 : 2,
                 anchors: [a, b],
-                legacy: fighter.id === 'zhila' && wasOverhang,
+                // КОСТОЛОМ получен пиксельной перекраской ЖИЛЫ: его альфа и
+                // геометрия те же, поэтому прежний уговор наследуется тоже.
+                legacy: wasOverhang,
             }));
         }
         for (const solo of SOLO) {

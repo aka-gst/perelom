@@ -135,3 +135,15 @@ test('файлы прежнего уговора отмечаются, а не �
     assert.equal(typeof code, 'number');
     rmSync(dir, { recursive: true, force: true });
 });
+
+test('перекраска файла прежнего уговора не становится новой ошибкой геометрии', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'art-legacy-recolor-'));
+    const old = { w: 224, h: 128 };
+    writeFileSync(join(dir, 'part-kostolom-arm-fore.png'),
+        makePng(old.w, old.h, { x0: 6, x1: old.w - 6, y: old.h / 2, half: 30 }));
+    const { out } = run(dir);
+    assert.ok(out.includes('part-kostolom-arm-fore.png'), out);
+    assert.ok(out.includes('прежний уговор'), out);
+    assert.ok(!out.match(/Вернулось на переделку[^]*part-kostolom-arm-fore/), out);
+    rmSync(dir, { recursive: true, force: true });
+});
