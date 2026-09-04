@@ -31,7 +31,9 @@ export const BONES = {
          */
         strength: 620,
         /** Что перелом вычёркивает из треугольника. */
-        disables: ['hand', 'catchHand'],
+        // Апперкот тоже рукой: перелом обязан отнимать ВСЁ, что ею делают,
+        // иначе несущее правило дырявое.
+        disables: ['hand', 'catchHand', 'upper'],
         /** Можно ли оторвать. Позвоночник и череп — нет, это уже конец боя. */
         tearable: true,
     },
@@ -39,7 +41,7 @@ export const BONES = {
         id: 'leg',
         name: 'НОГА',
         strength: 700,
-        disables: ['foot', 'catchFoot'],
+        disables: ['foot', 'catchFoot', 'sweep'],
         tearable: true,
     },
     ribs: {

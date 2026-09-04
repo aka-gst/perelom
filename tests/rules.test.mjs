@@ -49,8 +49,12 @@ test('у каждого действия есть цвет замаха', () => 
         assert.ok(lengthOf(id) > 0);
     }
     assert.notEqual(ACTION.hand.tell, ACTION.foot.tell, 'рука и нога обязаны различаться цветом');
-    assert.equal(STRIKES.length, 2);
+    assert.equal(STRIKES.length, 4, 'рука, нога, апперкот, подсечка');
     assert.equal(CATCHES.length, 2);
+    // У новых приёмов цвета обязаны отличаться от старых: телеграф
+    // различает тип удара цветом, и два одинаковых сливаются.
+    const tones = new Set(ACTIONS.map((id) => ACTION[id].tell));
+    assert.ok(tones.size >= 5, `цветов всего ${tones.size} на ${ACTIONS.length} действий`);
 });
 
 test('окно перехвата короче, чем разгон ноги, но длиннее разгона руки не бывает даром', () => {

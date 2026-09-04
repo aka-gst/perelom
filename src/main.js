@@ -9,13 +9,16 @@
  * его нечем наказывать, кроме броска, и нейтралка вырождается.
  */
 
-import { ACTION } from './rules.js';
+import { ACTION, FPS } from './rules.js';
 import { BONES, BONE_IDS, INTACT, TORN } from './body.js';
-import { STATE, createFight, optionsFor, tick } from './fight.js';
+import { STATE, createFight, optionsFor, stepFrame, tick } from './fight.js';
 import { controller, makeMind } from './ai.js';
 import { draw } from './render.js';
 import { loadArenaArt, loadFighterArt } from './sprites.js';
+import { createAudio, level, play } from './audio.js';
 import { makeRng } from './rng.js';
+import { бойНачат, бойКончен, обучениеОткрыто } from './schet.js';
+import { витриннаяСцена } from './showcase.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -29,11 +32,19 @@ const ART = {
     arena: loadArenaArt('dusk'),
 };
 
+/**
+ * Звук. Под `?тихо` контекст не создаётся вовсе, поэтому игра, открытая
+ * сессией для проверки, физически не может зашуметь в колонки.
+ */
+const audio = createAudio();
+
 let fight = null;
 let mind = null;
 let running = false;
 let last = 0;
 let elapsed = 0;
+/** Витрина рисуется каждый кадр, но бой в ней уже рассчитан и не движется. */
+let frozenShowcase = false;
 
 /* ─────────────────────────── ввод ─────────────────────────── */
 
@@ -59,6 +70,7 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
     if (event.repeat) return;
     held.add(name);
+    audio.wake?.(); // контекст рождается на первом жесте, раньше браузер не даст
     if (name === 'hand' || name === 'foot' || name === 'grab' || name === 'up') pressed[name] = true;
     if (name === 'left' || name === 'right') {
         const now = performance.now();
@@ -98,7 +110,16 @@ function playerInput() {
 let shiftHeld = false;
 window.addEventListener('keydown', (e) => { if (e.key === 'Shift') shiftHeld = true; });
 window.addEventListener('keyup', (e) => { if (e.key === 'Shift') shiftHeld = false; });
-const keyboardPull = () => shiftHeld || padPull;
+/*
+ * Третий жест — перехват. Читается с Shift, с экранной кнопки и из щупа.
+ *
+ * Щупа тут не было, и это дыра: `hold('pull')` клал имя в общий набор
+ * зажатых, а сюда заглядывали только две первые дороги. То есть автомат
+ * не мог выразить перехват вовсе — главную механику игры нечем было
+ * проверить прогоном, и попытка снять кадр с перехватом дала ноль из
+ * тысячи, похожий на «механика сломана».
+ */
+const keyboardPull = () => shiftHeld || padPull || held.has('pull');
 
 // Кнопки на экране: тап — удар, потянул вниз — перехват. Ходьбы на них
 // пока нет: телефон делаем после того, как игра станет интересной.
@@ -107,6 +128,7 @@ const PULL_DISTANCE = 18;
 for (const node of document.querySelectorAll('.key')) {
     let startY = null;
     node.addEventListener('pointerdown', (event) => {
+        audio.wake?.();
         startY = event.clientY;
         node.setPointerCapture?.(event.pointerId);
     });
@@ -129,18 +151,87 @@ function show(name) {
     if (running) last = performance.now();
 }
 
+/**
+ * Выход из боя.
+ *
+ * Кнопки не было вовсе — из начатого боя нельзя было выйти до чьей-нибудь
+ * победы. Это хуже, чем выход без предупреждения: игрок заперт.
+ *
+ * Спрашиваем, только если бой идёт: после победы терять нечего. И проверять
+ * надо обе половины — «нет» обязан удерживать, «да» обязан выпускать;
+ * правка, которая спрашивает и не выпускает, хуже болезни.
+ */
+$('quit').addEventListener('click', () => askQuit());
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && running) askQuit();
+});
+
+export function askQuit() {
+    if (!fight || fight.over) {
+        show('menu');
+        return false;
+    }
+    const node = $('confirm');
+    if (!node.hidden) return true;
+    node.innerHTML = '';
+    const h = document.createElement('h3');
+    h.textContent = 'ВЫЙТИ?';
+    const p = document.createElement('p');
+    p.textContent = 'Бой не доигран — он не сохраняется, и вернуться в него будет нельзя.';
+    const stay = document.createElement('button');
+    stay.className = 'mbtn mbtn--primary';
+    stay.textContent = 'ОСТАТЬСЯ';
+    stay.addEventListener('click', () => { node.hidden = true; });
+    const leave = document.createElement('button');
+    leave.className = 'mbtn';
+    leave.textContent = 'ВЫЙТИ В МЕНЮ';
+    leave.addEventListener('click', () => { node.hidden = true; show('menu'); });
+    node.append(h, p, stay, leave);
+    node.hidden = false;
+    return true;
+}
+
 $('go-fight').addEventListener('click', () => startFight());
-$('go-learn').addEventListener('click', () => show('learn'));
+$('go-learn').addEventListener('click', () => { обучениеОткрыто(); show('learn'); });
 $('learn-back').addEventListener('click', () => show('menu'));
 
-function startFight() {
-    fight = createFight({ seed: (Math.random() * 1e9) | 0 });
+function startFight(seed) {
+    /*
+     * Зерно можно задать — и для замеров это обязательно.
+     *
+     * Без него два прогона идут по разным зёрнам, противник ведёт себя
+     * иначе, и разошедшиеся числа читаются как «замер зависит от времени».
+     * Я на этом и споткнулся, проверяя устойчивость к частоте кадров.
+     */
+    /*
+     * Новый бой начинается с пустых рук.
+     *
+     * Зажатое не сбрасывалось, и остаток прошлой партии утекал в новую:
+     * два прогона с одним зерном расходились, и это легко принять за
+     * случайность в игре.
+     *
+     * Человека задевает то же, но по другой дороге, и одного `held` тут
+     * мало: жест перехвата живёт в отдельных `shiftHeld` и `padPull`.
+     * Выигравший бой с зажатым Shift жмёт мышью «ЕЩЁ РАЗ» — окно фокуса
+     * не теряло, `blur` не сработал, — и первый удар нового боя выходит
+     * перехватом. Сбрасывать надо все три места, иначе починка выглядит
+     * сделанной и не работает.
+     */
+    frozenShowcase = false;
+    held.clear();
+    shiftHeld = false;
+    padPull = false;
+    for (const имя of Object.keys(pressed)) pressed[имя] = false;
+
+    fight = createFight({ seed: Number.isFinite(seed) ? seed : (Math.random() * 1e9) | 0 });
     fight.fighters[0].art = ART.zhila;
     fight.fighters[1].art = ART.kostolom;
     fight.arenaArt = ART.arena;
     mind = makeMind();
     $('verdict').hidden = true;
+    $('confirm').hidden = true;
     show('fight');
+    бойНачат();
 }
 
 /* ─────────────────────────── цикл ─────────────────────────── */
@@ -150,15 +241,44 @@ let aiControl = null;
 function frame(now) {
     requestAnimationFrame(frame);
     if (!running || !fight) return;
+    // Спрайты грузятся не одновременно с модулем. Неподвижную витрину всё
+    // равно рисуем в каждом rAF, иначе на первом кадре останется силуэтная
+    // заглушка; сам бой при этом уже остановлен и не получает новых входов.
+    if (frozenShowcase) {
+        paint();
+        hud();
+        return;
+    }
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     elapsed += dt;
 
     if (!aiControl) aiControl = controller(mind, makeRng(7));
     tick(fight, dt, [playerInput, aiControl]);
+    speak();
     paint();
     hud();
-    if (fight.over && $('verdict').hidden) verdict();
+    итог();
+}
+
+/*
+ * Заметить конец боя.
+ *
+ * Стояло внутри отрисовочного цикла — и потому случалось только если кадр
+ * рисуется. Свернул человек вкладку на последнем ударе, браузер заморозил
+ * `requestAnimationFrame` — и событие «поражение» не уходит вовсе, а
+ * вердикт ждёт возвращения. Здесь же оно недостижимо для щупа: тот шагает
+ * бой напрямую, то есть проверяет не тот путь, которым идёт человек.
+ */
+function итог() {
+    if (!fight || !fight.over || !$('verdict').hidden) return;
+    бойКончен(fight);
+    verdict();
+}
+
+/** Вычерпать поводы для звука и сыграть. Молчит, если звук выключен. */
+function speak() {
+    for (const sound of fight.sounds.splice(0)) play(audio, sound.name, sound.strength);
 }
 
 function paint() {
@@ -238,5 +358,79 @@ function verdict() {
     node.hidden = false;
 }
 
+/**
+ * Отладочный доступ.
+ *
+ * Игра идёт на requestAnimationFrame, а он замирает в скрытой панели
+ * предпросмотра — проверено замером: ноль кадров за 600 мс. Значит ни снять
+ * кадр, ни проверить правку в балансе через обычный цикл нельзя. `advance`
+ * прогоняет столько игровых кадров, сколько попросили, и рисует результат.
+ *
+ * **Ввод идёт общим путём** — через тот же `playerInput`, что и клавиатура.
+ * Хук, который строит намерение по-своему, проверяет не игру, а сам себя.
+ */
+globalThis.PERELOM = {
+    get fight() { return fight; },
+    get audio() { return audio; },
+    /** Уровень сигнала: под `?тихо` обязан быть ровно ноль. */
+    level: () => level(audio),
+    /** `start(42)` — воспроизводимый бой. Без зерна каждый раз новый. */
+    start: startFight,
+    quit: askQuit,
+    confirming: () => !$('confirm').hidden,
+    show,
+    /** Нажать кнопку так, как её нажал бы игрок: попадёт в очередь нажатий. */
+    press(name) {
+        if (name in pressed) pressed[name] = true;
+    },
+    /** Зажать или отпустить направление. */
+    hold(name, on = true) {
+        if (on) held.add(name);
+        else held.delete(name);
+    },
+    advance(seconds = 1) {
+        if (!fight) return null;
+        if (!aiControl) aiControl = controller(mind, makeRng(7));
+        const steps = Math.max(1, Math.round(seconds * FPS));
+        for (let i = 0; i < steps; i += 1) stepFrame(fight, [playerInput, aiControl]);
+        итог();
+        speak();
+        paint();
+        hud();
+        return this.state();
+    },
+    /** Короткая сводка боя — по ней и проверяют, что произошло. */
+    state() {
+        if (!fight) return null;
+        const line = (f) => ({
+            state: f.state,
+            action: f.action,
+            hp: Math.round(f.body.hp),
+            x: Math.round(f.x),
+            guard: f.body.guard,
+            broken: BONE_IDS.filter((id) => f.body.bones[id].state !== INTACT),
+        });
+        return {
+            frame: fight.frame,
+            gap: Math.round(Math.abs(fight.fighters[0].x - fight.fighters[1].x)),
+            banner: fight.banner?.text ?? null,
+            you: line(fight.fighters[0]),
+            foe: line(fight.fighters[1]),
+            log: fight.log.slice(-3),
+        };
+    },
+};
+
 show('menu');
+const requestedShowcase = new URLSearchParams(window.location.search).get('сцена')
+    ?? new URLSearchParams(window.location.search).get('scene');
+const showcase = витриннаяСцена(requestedShowcase);
+if (showcase) {
+    fight = showcase;
+    fight.fighters[0].art = ART.zhila;
+    fight.fighters[1].art = ART.kostolom;
+    fight.arenaArt = ART.arena;
+    frozenShowcase = true;
+    show('fight');
+}
 requestAnimationFrame(frame);

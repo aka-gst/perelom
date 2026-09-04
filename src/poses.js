@@ -61,6 +61,36 @@ export const POSES = {
         elbowF: [4, 20], handF: [-6, 50], elbowB: [-11, 13], handB: [-40, 26],
         kneeF: [22, -37], footF: [22, -78], kneeB: [-12, -47], footB: [-38, -78],
     },
+    windUpper: {
+        pelvis: [-2, -20], chest: [-4, 10], neck: [-4, 32], head: [0, 49],
+        elbowF: [-33, 15], handF: [-6, -2], elbowB: [-35, 17], handB: [-4, 26],
+        kneeF: [37, -38], footF: [30, -78], kneeB: [4, -63], footB: [-34, -78],
+    },
+    hitUpper: {
+        pelvis: [6, 6], chest: [10, 36], neck: [12, 58], head: [16, 75],
+        elbowF: [45, 50], handF: [40, 82], elbowB: [7, 24], handB: [-24, 18],
+        kneeF: [21, -34], footF: [34, -73], kneeB: [-10, -34], footB: [-26, -72],
+    },
+    windSweep: {
+        pelvis: [-4, -26], chest: [-8, 4], neck: [-10, 26], head: [-8, 43],
+        elbowF: [6, -4], handF: [23, -32], elbowB: [-17, -8], handB: [-38, -32],
+        kneeF: [33, -49], footF: [4, -78], kneeB: [2, -69], footB: [-38, -78],
+    },
+    hitSweep: {
+        pelvis: [0, -34], chest: [-11, -6], neck: [-17, 15], head: [-17, 33],
+        elbowF: [-1, -15], handF: [16, -42], elbowB: [-31, -16], handB: [-45, -45],
+        kneeF: [40, -50], footF: [77, -67], kneeB: [1, -77], footB: [-40, -78],
+    },
+    hurtHigh: {
+        pelvis: [-4, -2], chest: [-12, 27], neck: [-21, 47], head: [-36, 56],
+        elbowF: [5, 25], handF: [-8, 54], elbowB: [-26, 13], handB: [-58, 12],
+        kneeF: [21, -37], footF: [20, -78], kneeB: [-13, -44], footB: [-36, -78],
+    },
+    hurtLow: {
+        pelvis: [-2, -8], chest: [6, 21], neck: [16, 41], head: [31, 51],
+        elbowF: [1, 10], handF: [24, -12], elbowB: [14, 7], handB: [-14, -8],
+        kneeF: [30, -37], footF: [26, -78], kneeB: [-3, -51], footB: [-34, -78],
+    },
     step: {
         pelvis: [0, 4], chest: [1, 34], neck: [2, 56], head: [6, 73],
         elbowF: [18, 26], handF: [22, 58], elbowB: [-12, 25], handB: [-4, 56],
@@ -99,6 +129,8 @@ export function lerpPose(a, b, k) {
  */
 export const ATTACK_POSES = {
     hand: { wind: 'windHand', hit: 'hitHand' },
+    upper: { wind: 'windUpper', hit: 'hitUpper' },
+    sweep: { wind: 'windSweep', hit: 'hitSweep' },
     foot: { wind: 'windFoot', hit: 'hitFoot' },
     grab: { wind: 'windGrab', hit: 'hitGrab' },
     catchHand: { wind: 'guard', hit: 'catch' },
@@ -126,6 +158,21 @@ export function poseForAttack(actionId, frame, spec) {
     if (frame < startup + active) return POSES[keys.hit];
     const back = (frame - startup - active) / Math.max(1, recovery);
     return lerpPose(POSES[keys.hit], POSES.idle, ease(Math.min(1, back)));
+}
+
+/**
+ * Поза получившего удар. `frame` — сколько кадров прошло, `length` — всего.
+ *
+ * В референсах реакция резкая: тело складывается за пару кадров и потом
+ * медленно возвращается. Держать одну статичную позу всю реакцию — значит
+ * потерять вес удара, ради которого всё и затевалось.
+ */
+export function hurtPose(kind, frame, length) {
+    const target = POSES[kind] ?? POSES.hurt;
+    const snap = 3;
+    if (frame < snap) return lerpPose(POSES.idle, target, ease(frame / snap));
+    const back = (frame - snap) / Math.max(1, length - snap);
+    return lerpPose(target, POSES.idle, ease(Math.min(1, back)));
 }
 
 /** Поза ходьбы: цикл шага, `phase` от 0 до 1. */

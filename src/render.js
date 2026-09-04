@@ -51,11 +51,144 @@ export function draw(ctx, fight, w, h, time) {
     for (const fighter of fight.fighters) silhouette(ctx, fighter, fight);
     for (const fighter of fight.fighters) telegraph(ctx, fighter);
     for (const fighter of fight.fighters) if (fighter.state === STATE.launched) juggleGlow(ctx, fighter);
+    sparks(ctx, fight);
     ctx.restore();
 
+    numbers(ctx, fight, cam, w, h);
     ctx.restore();
 
+    if (fight.banner) bannerOf(ctx, fight, w, h);
     if (fight.xray) xray(ctx, fight, w, h);
+}
+
+/**
+ * Крупная надпись о том, что произошло.
+ *
+ * Взято у Mortal Kombat: он называет словом каждое заметное событие —
+ * KOUNTER, PUNISH, GETUP PUNISH. Без этого игрок видит, что урон разный, но
+ * не понимает почему, а у нас разница между обычным попаданием и встречным
+ * — это вся суть перехвата.
+ */
+function bannerOf(ctx, fight, w, h) {
+    const b = fight.banner;
+    const k = Math.min(1, b.frames / 12);
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.textAlign = 'center';
+    ctx.font = '700 44px ui-monospace, monospace';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(5,6,10,0.9)';
+    ctx.strokeText(b.text, w / 2, h * 0.24);
+    ctx.fillStyle = b.tone;
+    ctx.fillText(b.text, w / 2, h * 0.24);
+    ctx.restore();
+}
+
+/**
+ * Вспышка в точке касания — главный сигнал «удар был».
+ *
+ * Три вида различаются намеренно и различаются формой, а не только цветом:
+ * попадание — звезда лучами наружу, встречный — та же звезда крупнее и
+ * краснее, блок — дуга поперёк удара, будто щит. По ней должно быть видно,
+ * прошло или закрыли, не читая ни полосок, ни лога.
+ */
+const SPARK = {
+    hit: { tone: '#fff3c4', rays: 7, reach: 30, spread: 0.95 },
+    counter: { tone: '#ff8a3d', rays: 9, reach: 44, spread: 1.05 },
+    block: { tone: '#7dd3fc', rays: 5, reach: 26, spread: 0.6, arc: true },
+};
+
+/**
+ * Лучи вспышки — конусом по направлению, а не звездой во все стороны.
+ *
+ * Направление читается боковым зрением раньше, чем цвет и форма: у
+ * попадания искры уходят СКВОЗЬ противника по ходу удара, у звона —
+ * НАЗАД, в бьющего. Цветом развести нельзя: палитра уже занята смыслами,
+ * и четвёртый сломал бы прежние.
+ *
+ * Функция чистая, потому что по ней же и запирается тестом: средний ход
+ * лучей по горизонтали у попадания положительный, у звона отрицательный.
+ */
+export function sparkRays(kind, dir = 1) {
+    const spec = SPARK[kind] ?? SPARK.hit;
+    const base = dir >= 0 ? 0 : Math.PI;
+    const out = [];
+    for (let i = 0; i < spec.rays; i += 1) {
+        const t = spec.rays === 1 ? 0 : (i / (spec.rays - 1)) * 2 - 1;
+        const angle = base + t * spec.spread;
+        // Крайние лучи короче — конус, а не веер.
+        out.push({ angle, reach: spec.reach * (1 - Math.abs(t) * 0.35) });
+    }
+    return out;
+}
+
+/** Средний ход лучей по горизонтали. По нему исход и отличается числом. */
+export function sparkDrift(kind, dir = 1) {
+    const rays = sparkRays(kind, dir);
+    if (!rays.length) return 0;
+    return rays.reduce((sum, r) => sum + Math.cos(r.angle) * r.reach, 0) / rays.length;
+}
+
+function sparks(ctx, fight) {
+    if (!fight.sparks.length) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (const s of fight.sparks) {
+        const spec = SPARK[s.kind] ?? SPARK.hit;
+        const k = s.life / (s.kind === 'block' ? 10 : 13);
+        const reach = spec.reach * s.size * (1.3 - k * 0.5);
+        ctx.globalAlpha = Math.min(1, k * 1.6);
+
+        const grow = s.size * (1.3 - k * 0.5);
+        ctx.strokeStyle = spec.tone;
+        ctx.lineWidth = (spec.arc ? 3 : 3.5) * s.size * k;
+        ctx.beginPath();
+        for (const ray of sparkRays(s.kind, s.dir)) {
+            const inner = ray.reach * grow * 0.28;
+            const outer = ray.reach * grow;
+            ctx.moveTo(s.x + Math.cos(ray.angle) * inner, s.y + Math.sin(ray.angle) * inner);
+            ctx.lineTo(s.x + Math.cos(ray.angle) * outer, s.y + Math.sin(ray.angle) * outer);
+        }
+        ctx.stroke();
+
+        if (spec.arc) {
+            // Звон вдобавок к конусу назад даёт дугу — щит поперёк удара.
+            const face = s.dir >= 0 ? 0 : Math.PI;
+            ctx.lineWidth = 4.5 * k;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, spec.reach * grow * 1.2, face - 0.85, face + 0.85);
+            ctx.stroke();
+        } else {
+            const core = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, spec.reach * grow * 0.55);
+            core.addColorStop(0, '#ffffff');
+            core.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = core;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, spec.reach * grow * 0.55, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    ctx.restore();
+}
+
+/** Цифры урона у места попадания — тоже из Mortal Kombat. */
+function numbers(ctx, fight, cam, w, h) {
+    if (!fight.numbers.length) return;
+    ctx.save();
+    ctx.translate(w / 2, h * 0.62);
+    ctx.scale(cam.zoom, cam.zoom);
+    ctx.translate(-cam.x, -cam.y);
+    ctx.textAlign = 'center';
+    ctx.font = '700 17px ui-monospace, monospace';
+    ctx.lineWidth = 3;
+    for (const n of fight.numbers) {
+        ctx.globalAlpha = Math.min(1, n.life / 16);
+        ctx.strokeStyle = 'rgba(5,6,10,0.85)';
+        ctx.strokeText(String(n.value), n.x, n.y);
+        ctx.fillStyle = '#ffd166';
+        ctx.fillText(String(n.value), n.x, n.y);
+    }
+    ctx.restore();
 }
 
 /**
@@ -67,8 +200,10 @@ function cameraOf(fight, w, h) {
     const [a, b] = fight.fighters;
     const ax = a.sk.mode === 'ragdoll' ? centerOf(a.sk).x : a.x;
     const bx = b.sk.mode === 'ragdoll' ? centerOf(b.sk).x : b.x;
-    const span = Math.abs(ax - bx) + 340;
-    const zoom = Math.max(1.0, Math.min(2.0, w / span));
+    // Ближе, чем было: в Tekken и SF6 боец занимает больше половины высоты
+    // кадра, а у нас занимал две пятых, и от этого бой казался мелким.
+    const span = Math.abs(ax - bx) + 260;
+    const zoom = Math.max(1.3, Math.min(2.4, w / span));
     const half = w / (2 * zoom);
     const left = fight.centerX - fight.wall;
     const right = fight.centerX + fight.wall;
@@ -235,12 +370,23 @@ function silhouette(ctx, fighter, fight) {
     ctx.ellipse(mid, fighter.groundY + 3, Math.max(26, Math.abs(feet - mid) + 20), 7, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    /*
+     * Подсветка на попадании.
+     *
+     * Поле `flash` выставлялось с самого начала и не рисовалось нигде — из-за
+     * этого боец при ударе не менялся вовсе, и попадание читалось только по
+     * полоске здоровья. Первый живой отзыв так и звучал: «слабо понятно, что
+     * удар был».
+     */
+    const lit = fighter.flash > 0;
+    if (lit) ctx.filter = `brightness(${1 + fighter.flash * 0.26}) saturate(0.5)`;
     if (fighter.art?.ready) {
         sprites(ctx, fighter);
     } else {
         sticks(ctx, fighter);
         rim(ctx, fighter);
     }
+    if (lit) ctx.filter = 'none';
     breaks(ctx, fighter);
 }
 

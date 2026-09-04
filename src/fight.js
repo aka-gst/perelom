@@ -20,13 +20,13 @@
  * Модуль чистый: ни DOM, ни канваса, ни случайности сверх переданного зерна.
  */
 
-import { ACTION, CHIP_SCALE, COUNTER_SCALE, FPS, lengthOf, outcomeOf } from './rules.js';
+import { ACTION, CHIP_SCALE, COUNTER_SCALE, FPS, actionFor, lengthOf, outcomeOf } from './rules.js';
 import { BONES, applyImpulse, availableActions, makeBody } from './body.js';
 import {
     applyPose, boneNear, centerOf, createSkeleton, distanceToBox, goRagdoll, heightOf,
     hitBone, hurtBox, step,
 } from './physics.js';
-import { POSES, poseForAttack, walkPose } from './poses.js';
+import { POSES, hurtPose, poseForAttack, walkPose } from './poses.js';
 import { makeRng } from './rng.js';
 
 export const STATE = {
@@ -55,15 +55,36 @@ export const TUNE = {
     hurtFrames: 14,
     getupFrames: 26,
     downMax: 90,
-    /** Бросок берёт только вблизи — иначе он бьёт защиту слишком дёшево. */
-    grabRange: 96,
+    /**
+     * Бросок берёт только вблизи — иначе он бьёт защиту слишком дёшево.
+     * Считается в момент касания, поэтому с шагом в удар начинать можно
+     * примерно на треть дальше этого числа.
+     */
+    grabRange: 70,
     /** Слипание тел: подойти ближе нельзя, иначе бойцы проходят насквозь. */
     bodyGap: 54,
     /** Замедление кадра в момент попадания. Без него удар не чувствуется. */
-    hitstop: { hit: 5, counter: 9, chip: 3, launch: 11, throw: 9, juggle: 4 },
+    /**
+     * Замирание кадра в момент попадания.
+     *
+     * Было вдвое короче: пять кадров это 83 мс, и удар успевал пройти
+     * незамеченным. В файтингах на обычном попадании держат 8–16, и именно
+     * замирание, а не урон, читается как «попал».
+     */
+    hitstop: { hit: 9, counter: 14, chip: 5, launch: 16, throw: 13, juggle: 6 },
     juggleDecay: 0.84,
     /** Скорость, с которой встреча со скалой начинает ломать кости. */
     wallSpeed: 4.5,
+    /**
+     * Сколько шагов симуляции можно прогнать за один кадр, догоняя время.
+     *
+     * Ограничитель нужен, иначе после подвисания игра рванёт вперёд рывком,
+     * а на медленной машине уйдёт в спираль. Но у него есть цена, и её надо
+     * знать числом: ниже `CATCHUP_FLOOR` кадров в секунду игровое время
+     * начинает отставать и догнать его нечем — все окна разъезжаются разом,
+     * и это выглядит как «баланс сломан», хотя сломана среда.
+     */
+    maxCatchUpSteps: 5,
 };
 
 // Подброс намеренно невысокий и почти вертикальный: улетит выше — не
@@ -74,6 +95,14 @@ const LAUNCH = { vx: 25, vy: -600, spin: 2.4, impulse: 320 };
 // приходит в землю, а не заваливается на месте. Отсюда же и польза от него
 // в нейтралке — им отправляют противника к скале.
 const SLAM = { vx: 620, vy: -380, spin: 8 };
+
+/**
+ * Порог частоты кадров: ниже него игровое время отстаёт от реального.
+ *
+ * Замерено, а не выведено: при 12 кадрах в секунду за секунду реального
+ * времени проходит ровно 60 игровых, при 10 — только 50.
+ */
+export const CATCHUP_FLOOR = FPS / TUNE.maxCatchUpSteps;
 
 export const other = (side) => (side === 0 ? 1 : 0);
 
@@ -93,9 +122,26 @@ export function createFight({ seed = 1, groundY = 430, centerX = 480, wall = 330
         winner: null,
         over: false,
         bestJuggle: 0,
+        /** Крупная надпись поверх боя: что сейчас произошло. */
+        banner: null,
+        /** Всплывающие цифры урона. */
+        numbers: [],
+        /**
+         * Вспышки попадания: где и какая. Бой их не рисует, а записывает,
+         * как и звук.
+         */
+        sparks: [],
+        /**
+         * Поводы для звука — списком, а не проигрыванием.
+         *
+         * Модуль боя обязан оставаться чистым: он считает, а не шумит.
+         * Кто хочет звук — вычерпывает этот список и играет сам, и потому
+         * бой одинаково считается и в браузере, и в тестах.
+         */
+        sounds: [],
         fighters: [
-            makeFighter(0, 'ТЫ', centerX - 95, 1, groundY, centerX, wall),
-            makeFighter(1, 'КОСТОЛОМ', centerX + 95, -1, groundY, centerX, wall),
+            makeFighter(0, 'ТЫ', centerX - 70, 1, groundY, centerX, wall),
+            makeFighter(1, 'КОСТОЛОМ', centerX + 70, -1, groundY, centerX, wall),
         ],
     };
     for (const f of fight.fighters) poseOf(f);
@@ -115,6 +161,7 @@ function makeFighter(side, name, x, facing, groundY, centerX, wall) {
         airAttack: false,
         walkPhase: 0,
         blocking: false,
+        hurtKind: 'hurtLow',
         juggleHits: 0,
         juggleDamage: 0,
         flash: 0,
@@ -141,7 +188,7 @@ export function tick(fight, dt, controllers) {
     fight.carry += Math.min(dt, 0.1);
     const stepTime = 1 / FPS;
     let steps = 0;
-    while (fight.carry >= stepTime && steps < 5) {
+    while (fight.carry >= stepTime && steps < TUNE.maxCatchUpSteps) {
         fight.carry -= stepTime;
         steps += 1;
         stepFrame(fight, controllers);
@@ -151,6 +198,17 @@ export function tick(fight, dt, controllers) {
 export function stepFrame(fight, controllers) {
     fight.frame += 1;
     fight.shake *= 0.86;
+    if (fight.banner) {
+        fight.banner.frames -= 1;
+        if (fight.banner.frames <= 0) fight.banner = null;
+    }
+    for (const number of fight.numbers) {
+        number.life -= 1;
+        number.y -= 0.7;
+    }
+    fight.numbers = fight.numbers.filter((n) => n.life > 0);
+    for (const spark of fight.sparks) spark.life -= 1;
+    fight.sparks = fight.sparks.filter((s) => s.life > 0);
     for (const f of fight.fighters) {
         f.flash = Math.max(0, f.flash - 1);
         decayBlood(f);
@@ -190,8 +248,13 @@ function advance(fight, f, input) {
 
     // Лицом к противнику — но только стоя и не в действии, иначе удар
     // разворачивался бы в воздухе и читать замах было бы невозможно.
+    //
+    // Пока противник в рагдолле, его поле `x` не обновляется — двигается
+    // только скелет. Разворот по `x` смотрел бы на место, ГДЕ ТОТ БЫЛ до
+    // броска, и после дальнего броска боец стоял бы спиной к лежащему.
     if (f.y === 0 && (f.state === STATE.idle || f.state === STATE.walk)) {
-        f.facing = foe.x >= f.x ? 1 : -1;
+        const foeX = foe.sk.mode === 'ragdoll' ? centerOf(foe.sk).x : foe.x;
+        f.facing = foeX >= f.x ? 1 : -1;
         f.sk.facing = f.facing;
     }
 
@@ -272,6 +335,16 @@ function airFrame(fight, f, input) {
 
 function attackFrame(fight, f, input) {
     const spec = ACTION[f.action];
+    // Шаг в удар. Начинается вместе с выносом конечности, а не с первого
+    // кадра замаха: сначала боец грузится, потом переносит вес.
+    if (spec.lunge) {
+        const from = Math.max(1, Math.round(spec.startup * 0.55));
+        const until = spec.startup + spec.active;
+        if (f.frame >= from && f.frame < until) {
+            f.x += (spec.lunge / (until - from)) * f.facing;
+            clampX(f);
+        }
+    }
     if (f.airAttack) {
         f.x += f.vx;
         f.y -= f.vy;
@@ -287,9 +360,12 @@ function attackFrame(fight, f, input) {
 
 function startAction(fight, f, input, inAir = false) {
     const options = availableActions(f.body, Object.keys(ACTION));
-    const wants = input.pull
-        ? (input.hand ? 'catchHand' : input.foot ? 'catchFoot' : null)
-        : (input.hand ? 'hand' : input.foot ? 'foot' : input.grab ? 'grab' : null);
+    const button = input.hand ? 'hand' : input.foot ? 'foot' : input.grab ? 'grab' : null;
+    if (!button) return false;
+    // Тяга сильнее низа: перехват — осознанный жест, и если зажаты оба,
+    // игрок скорее всего целился в него.
+    const gesture = input.pull ? 'pull' : input.down ? 'low' : 'push';
+    const wants = actionFor(button, gesture) ?? actionFor(button, 'push');
     if (!wants) return false;
     // В воздухе не хватают и не перехватывают: не за что зацепиться.
     if (inAir && ACTION[wants].kind !== 'strike') return false;
@@ -423,6 +499,7 @@ function land_hit(fight, att, def, spec, found) {
     if (outcome === 'miss') return;
 
     if (outcome === 'launch') {
+        banner(fight, 'ПЕРЕХВАТ', '#22d3ee');
         note(fight, `${def.name} перехватывает ${spec.name.toLowerCase()}`);
         enter(def, STATE.idle);
         launch(fight, def, att);
@@ -433,11 +510,15 @@ function land_hit(fight, att, def, spec, found) {
         def.body.guard -= spec.kind === 'grab' ? 0 : (spec.id === 'foot' ? 2 : 1);
         def.body.hp = Math.max(0, def.body.hp - spec.damage * CHIP_SCALE);
         def.vx = 2.4 * att.facing;
-        def.flash = 6;
+        // Блок не подсвечивает тело: подсветка значит «прошло». И искры
+        // летят НАЗАД, в бьющего: удар отражён, а не прошёл сквозь.
+        spark(fight, att.sk.points[spec.joint], 'block', 1, -att.facing);
+        cue(fight, 'hand', 0.45);
         fight.freeze = TUNE.hitstop.chip;
-        fight.shake = 4;
+        fight.shake = 5;
         if (def.body.guard <= 0) {
             def.body.guard = 3;
+            banner(fight, 'ГАРД СЛОМАН', '#ffd166');
             note(fight, `${def.name}: гард сломан`);
             launch(fight, att, def);
         }
@@ -445,6 +526,7 @@ function land_hit(fight, att, def, spec, found) {
     }
 
     if (outcome === 'throw') {
+        banner(fight, 'БРОСОК', '#c77dff');
         note(fight, `${att.name} бросает`);
         slam(fight, att, def, spec);
         return;
@@ -454,8 +536,14 @@ function land_hit(fight, att, def, spec, found) {
         * (juggling ? TUNE.juggleDecay ** def.juggleHits : 1);
     const result = applyImpulse(def.body, found.bone, spec.impulse * scale, spec.damage * scale);
     fight.freeze = juggling ? TUNE.hitstop.juggle : TUNE.hitstop[outcome] ?? TUNE.hitstop.hit;
-    fight.shake = juggling ? 6 : outcome === 'counter' ? 13 : 8;
-    def.flash = 8;
+    fight.shake = juggling ? 7 : outcome === 'counter' ? 16 : 11;
+    def.flash = outcome === 'counter' ? 9 : 6;
+    // Искры летят СКВОЗЬ противника, по ходу удара. Направление читается
+    // боковым зрением там, где цвет и форма ещё не разобраны.
+    spark(fight, found, outcome === 'counter' ? 'counter' : 'hit', outcome === 'counter' ? 1.5 : 1, att.facing);
+    cue(fight, spec.id === 'hand' ? 'hand' : 'heavy', outcome === 'counter' ? 1 : 0.85);
+    number(fight, found, result.damage);
+    if (outcome === 'counter') banner(fight, 'ВСТРЕЧНЫЙ', '#ff6b35');
     splash(def, found, 6 + spec.impulse / 46);
 
     if (juggling) {
@@ -470,11 +558,35 @@ function land_hit(fight, att, def, spec, found) {
         const away = spec.id === 'hand' ? 35 : 640;
         goRagdoll(def.sk, away * att.facing * decay, up * decay, 3 * decay);
         note(fight, `${def.juggleHits} попаданий подряд`);
+    } else if (spec.launches) {
+        // Апперкот подбрасывает сам — второй вход в джагл, за долгий отходняк.
+        launch(fight, att, def);
+        if (result.broke) startXray(fight, def, found.bone, result);
+        checkDeath(fight, def);
+        return;
+    } else if (spec.knocks) {
+        // Подсечка сбивает с ног, но не подбрасывает: продолжения нет.
+        banner(fight, 'СБИТ С НОГ', '#a3e635');
+        knockDown(fight, att, def);
+        if (result.broke) startXray(fight, def, found.bone, result);
+        checkDeath(fight, def);
+        return;
     } else if (def.state === STATE.jump || (def.state === STATE.attack && def.airAttack)) {
         launch(fight, att, def);
         return;
     } else {
         enter(def, STATE.hurt);
+        /*
+         * Куда пришёлся удар, так тело и складывается: от руки голова уходит
+         * назад, от ноги и броска боец сгибается пополам.
+         *
+         * Высота удара — свойство приёма, а не вычисляемая величина, и в
+         * файтингах она всегда задана самим приёмом. Пробовал иначе дважды,
+         * и оба раза выходила мёртвая ветка: по имени кости — кулак в
+         * вытянутой руке идёт на уровне груди и в череп не попадает вовсе;
+         * по высоте касания — порог ловил всё подряд.
+         */
+        def.hurtKind = spec.id === 'hand' ? 'hurtHigh' : 'hurtLow';
         def.vx = (outcome === 'counter' ? 4.6 : 3.1) * att.facing;
         if (outcome === 'counter') note(fight, `встречный: ${BONES[found.bone].name.toLowerCase()}`);
     }
@@ -497,6 +609,19 @@ function launch(fight, from, victim) {
     note(fight, `${victim.name} в воздухе`);
 }
 
+/** Сбить с ног: тело валится, но не взлетает — джагла из этого нет. */
+function knockDown(fight, from, victim) {
+    victim.state = STATE.down;
+    victim.frame = 0;
+    victim.juggleHits = 0;
+    victim.slamPending = true;
+    victim.sk.mode = 'ragdoll';
+    applyPose(victim.sk, POSES.hurt, victim.x, victim.groundY - victim.y);
+    goRagdoll(victim.sk, 260 * from.facing, -170, 4.2 * from.facing);
+    fight.freeze = TUNE.hitstop.throw;
+    fight.shake = 12;
+}
+
 function slam(fight, from, victim, spec) {
     const result = applyImpulse(victim.body, 'spine', spec.impulse, spec.damage);
     victim.state = STATE.down;
@@ -509,6 +634,7 @@ function slam(fight, from, victim, spec) {
     goRagdoll(victim.sk, SLAM.vx * from.facing, SLAM.vy, SLAM.spin * from.facing);
     fight.freeze = TUNE.hitstop.throw;
     fight.shake = 14;
+    cue(fight, 'heavy', 1);
     splash(victim, centerOf(victim.sk), 22);
     if (result.broke) startXray(fight, victim, 'spine', result);
     checkDeath(fight, victim);
@@ -535,6 +661,9 @@ function ragdoll(fight, f) {
         const impulse = Math.min(760, speedX * 95);
         const result = applyImpulse(f.body, bone, impulse, impulse / 30);
         fight.shake = 16;
+        cue(fight, 'heavy', 1);
+        banner(fight, 'О СКАЛУ', '#ff2436');
+        number(fight, point, result.damage);
         splash(f, point, 20);
         note(fight, `о скалу: ${BONES[bone].name.toLowerCase()}`);
         if (result.broke) startXray(fight, f, bone, result);
@@ -571,6 +700,8 @@ function groundImpact(fight, f, fallSpeed) {
     const impulse = Math.min(700, fallSpeed * 0.5);
     const result = applyImpulse(f.body, bone, impulse, impulse / 28);
     fight.shake = 11;
+    cue(fight, 'heavy', 0.8);
+    number(fight, lowest, result.damage);
     splash(f, lowest, 14);
     if (result.broke) startXray(fight, f, bone, result);
     checkDeath(fight, f);
@@ -589,6 +720,7 @@ function startXray(fight, victim, boneId, result) {
     };
     fight.xrayFrames = 96;
     fight.shake = 20;
+    cue(fight, result.tore ? 'tear' : 'crack', 1);
     fight.freeze = 0;
     const lost = BONES[boneId].disables;
     note(fight, `${BONES[boneId].name}: ${result.tore ? 'ОТОРВАНА' : 'СЛОМАН'}`
@@ -608,7 +740,7 @@ function poseOf(f) {
     const ground = f.groundY - f.y;
     let pose = POSES.idle;
     if (f.state === STATE.attack) pose = poseForAttack(f.action, f.frame, ACTION[f.action]);
-    else if (f.state === STATE.hurt) pose = POSES.hurt;
+    else if (f.state === STATE.hurt) pose = hurtPose(f.hurtKind ?? 'hurtLow', f.frame, TUNE.hurtFrames);
     else if (f.state === STATE.getup) pose = POSES.getup;
     else if (f.state === STATE.jump || f.y > 0) pose = POSES.air;
     else if (f.state === STATE.dash) pose = POSES.step;
@@ -665,6 +797,35 @@ function checkDeath(fight, f) {
     fight.winner = other(f.side);
     note(fight, `${fight.fighters[fight.winner].name} побеждает`);
     if (!fight.xrayFrames) fight.over = true;
+}
+
+/** Назвать событие словом поверх боя. Мелкий лог внизу для этого не годится. */
+function banner(fight, text, tone = '#ff2436') {
+    fight.banner = { text, tone, frames: 54 };
+}
+
+/** Цифра урона у места попадания: сразу видно, что удар не одинаков. */
+function number(fight, at, value) {
+    if (value < 1) return;
+    fight.numbers.push({ x: at.x, y: at.y - 20, value: Math.round(value), life: 48 });
+}
+
+/**
+ * Вспышка в точке касания.
+ *
+ * Главный сигнал «удар был» — не урон и не цифра, а свет в месте
+ * попадания. Три вида различаются намеренно: по вспышке должно быть видно,
+ * попал ты, или тебя закрыли, — не читая ни полосок, ни лога.
+ */
+function spark(fight, at, kind, size = 1, dir = 1) {
+    fight.sparks.push({ x: at.x, y: at.y, kind, size, dir, life: kind === 'block' ? 10 : 13 });
+    if (fight.sparks.length > 12) fight.sparks.shift();
+}
+
+/** Записать повод для звука. Список вычерпывает тот, кто играет. */
+function cue(fight, name, strength = 1) {
+    fight.sounds.push({ name, strength });
+    if (fight.sounds.length > 16) fight.sounds.shift();
 }
 
 function note(fight, text) {

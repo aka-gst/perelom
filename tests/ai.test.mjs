@@ -76,6 +76,52 @@ test('он видит переломы игрока и не держит защ�
     assert.ok(seen.every((input) => !(input.foot && input.pull)), 'перехватывает сломанной ногой');
 });
 
+test('он перестаёт сторожить руку, которую сломал', () => {
+    /*
+     * Это утверждение вынесено на витрину, и потому проверяется боем, а не
+     * чтением: обещание, которое человек проверит за минуту, хуже его
+     * отсутствия.
+     *
+     * Условия создаются руками — привычка известна, удар летит, дистанция
+     * близкая, — потому что через модель игрока замерить не вышло трижды
+     * подряд: модель то отступала всегда, то не могла ударить сломанной
+     * рукой, и каждый раз выходил ноль, похожий на «не работает».
+     */
+    const проба = (сломатьРуку) => {
+        const fight = createFight({ seed: 4 });
+        fight.fighters[0].x = fight.centerX - 45;
+        fight.fighters[1].x = fight.centerX + 45;
+        if (сломатьРуку) fight.fighters[0].body.bones.arm.state = BROKEN;
+        const mind = makeMind();
+        mind.seen = Array(8).fill('hand');
+        const rng = makeRng(5);
+        let ловит = 0;
+        for (let повтор = 0; повтор < 20; повтор += 1) {
+            let нажал = false;
+            for (let i = 0; i < 24; i += 1) {
+                const игрок = () => (нажал ? { ...NEUTRAL } : ((нажал = true), { ...NEUTRAL, hand: true }));
+                const бот = (state, side) => {
+                    const input = controlFrame(mind, state, side, rng);
+                    if (input.pull && input.hand) ловит += 1;
+                    return input;
+                };
+                stepFrame(fight, [игрок, бот]);
+            }
+            fight.fighters[0].state = STATE.idle;
+            fight.fighters[0].frame = 0;
+            fight.fighters[0].x = fight.centerX - 45;
+            fight.fighters[1].x = fight.centerX + 45;
+            fight.fighters[0].body.hp = 100;
+            fight.fighters[1].body.hp = 100;
+        }
+        return ловит;
+    };
+
+    const цела = проба(false);
+    assert.ok(цела > 0, 'без этого проверка ниже ничего не значит: он и так не перехватывает');
+    assert.equal(проба(true), 0, 'сломанную руку сторожить незачем — ею не ударят');
+});
+
 test('он доигрывает бой сам с собой и не зависает', () => {
     const fight = createFight({ seed: 8 });
     const rngA = makeRng(11);

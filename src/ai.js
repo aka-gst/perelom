@@ -24,6 +24,8 @@ const MEMORY = 10;
 export const TEMPER = {
     /** Дистанция, на которой ему хочется стоять. */
     spacing: 96,
+    /** Как часто он берётся за долгие приёмы: апперкот и подсечку. */
+    boldness: 0.5,
     /** Насколько охотно лезет вперёд. */
     aggression: 0.55,
     /** Как резко наказывает замеченную привычку. */
@@ -77,6 +79,7 @@ export function controlFrame(mind, fight, side, rng) {
     if (me.state !== STATE.idle && me.state !== STATE.walk && me.state !== STATE.jump) return input;
 
     const gap = Math.abs(foe.x - me.x);
+    const want = mind.temper.spacing;
     const toward = foe.x > me.x ? 'right' : 'left';
     const away = toward === 'right' ? 'left' : 'right';
     const options = optionsFor(me);
@@ -109,17 +112,35 @@ export function controlFrame(mind, fight, side, rng) {
         return input;
     }
 
-    // Наказание за промах: противник в отходняке — влезаем.
+    // Наказание за промах: противник в отходняке — влезаем. Апперкот тут
+    // и нужен: отходняк — единственное окно, где долгий приём безопасен, а
+    // взамен даёт вход в джагл без выигранного чтения.
     const whiffing = seen.state === STATE.attack && seen.action
         && seen.frame > ACTION[seen.action].startup + ACTION[seen.action].active;
-    if (whiffing && gap < 108 && mind.cool === 0 && options.includes('foot')) {
-        mind.cool = 20;
+    if (whiffing && gap < 108 && mind.cool === 0) {
+        mind.cool = 24;
+        if (options.includes('upper') && gap < 84 && rng() < mind.temper.boldness) {
+            input.hand = true;
+            input.down = true;
+        } else if (options.includes('foot')) {
+            input.foot = true;
+        }
+        return input;
+    }
+
+    // Отступающего достаёт подсечка: у неё длинный выпад, и она сбивает с
+    // ног. Без неё вечный шаг назад ничем не наказан, кроме броска, а тот
+    // берёт только вплотную.
+    const retreating = seen.state === STATE.walk && Math.abs(seen.x - me.x) > gap - 4;
+    if (retreating && gap > want - 10 && gap < 150 && mind.cool === 0
+        && options.includes('sweep') && rng() < mind.temper.boldness * 0.5) {
+        mind.cool = 28;
         input.foot = true;
+        input.down = true;
         return input;
     }
 
     // Нейтралка: держим дистанцию и время от времени лезем.
-    const want = mind.temper.spacing;
     if (gap > want + 26) {
         input[toward] = true;
         if (gap > 190 && rng() < 0.03) input[toward === 'right' ? 'dashRight' : 'dashLeft'] = true;

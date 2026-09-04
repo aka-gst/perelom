@@ -37,6 +37,27 @@ body { display: flex; }
 .screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .screen[hidden] { display: none; }
 
+/* Ссылка на главную сайта. Общий `/game-menu.css` задаёт ей вид, но игра
+   открывается и вне сайта — тогда работают эти правила. Сорок четыре точки
+   по высоте: меньше на телефоне не попадают. */
+.site-home {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 16px;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--dim);
+    text-decoration: none;
+    background: rgba(5, 6, 10, 0.72);
+    border: 1px solid #2a2226;
+}
+.site-home:hover { color: var(--paper); border-color: var(--you); }
+
 /* ─────────────── меню и обучение ─────────────── */
 
 .screen--menu {
@@ -92,7 +113,36 @@ body { display: flex; }
 
 .screen--fight { gap: 8px; }
 
+/*
+ * Шапка боя уступает место кнопке «на главную».
+ *
+ * Кнопка прибита к углу окна, а полоса здоровья начиналась под ней: имя
+ * бойца и отметки костей были не видны вовсе. Ширина у обеих берётся из
+ * одного числа, иначе они разъедутся при первой же правке шрифта.
+ */
+:root { --home-w: 120px; }
 .bars { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: start; }
+/* Кнопка прибита к окну, а шапка живёт в центрированном `.app` — значит
+   отступ до неё зависит от ширины окна и вычисляется, а не подбирается.
+   Подобранное число совпадало ровно при 1280 и врало на всех остальных. */
+.screen--fight .bars {
+    padding-left: max(0px, calc(
+        8px + var(--home-w) + 8px
+        - max(0px, (100vw - 1100px) / 2) - var(--pad)
+    ));
+}
+@media (max-width: 700px) {
+    /* На телефоне полоса дороже слов: кнопка сжимается до стрелки. */
+    :root { --home-w: 44px; }
+    .site-home { padding: 0; width: 44px; justify-content: center; font-size: 0; }
+    .site-home::before { content: '←'; font-size: 20px; }
+    /* Тем же счётом, что по горизонтали: низ кнопки плюс зазор. Подобранные
+       40 задевали имя бойца на четыре точки — глазами это не видно. */
+    .screen--fight .bars {
+        padding-left: 0;
+        margin-top: calc(8px + var(--home-w) + 8px - var(--pad));
+    }
+}
 .bar { display: grid; gap: 4px; min-width: 0; }
 .bar--right { justify-items: end; text-align: right; }
 .bar-name { font-size: 11px; letter-spacing: 0.2em; color: var(--dim); }
@@ -112,7 +162,21 @@ body { display: flex; }
 .bar-bones span.broken { color: #ffb3bb; border-color: var(--blood); background: rgba(193,18,31,0.18); }
 .bar-bones span.torn { color: #fff; border-color: var(--blood); background: var(--blood); text-decoration: line-through; }
 
-.clock { display: grid; gap: 4px; justify-items: center; min-width: 110px; }
+.clock { display: grid; gap: 5px; justify-items: center; min-width: 110px; }
+
+/* Выход из боя. Кнопка мелкая и стоит в шапке: под большим пальцем ей не
+   место — там играют, и промах стоил бы партии. */
+.quit {
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    padding: 3px 10px;
+    background: transparent;
+    color: var(--dim);
+    border: 1px solid #2a2226;
+    cursor: pointer;
+}
+.quit:hover { color: var(--paper); border-color: var(--you); }
 .clock-phase { font-size: 10px; letter-spacing: 0.22em; color: var(--you); }
 .clock-track { width: 100px; height: 4px; background: #1a1114; }
 .clock-fill { display: block; height: 100%; width: 100%; background: var(--paper); }

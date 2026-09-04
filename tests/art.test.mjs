@@ -111,11 +111,39 @@ test('приёмка ловит пустой файл и неверный раз
     const { code, out } = run(dir);
     assert.equal(code, 1);
     assert.ok(out.includes('почти пустой'), out);
-    assert.ok(out.includes('а нужно 104×96'), out);
+    assert.ok(out.includes('вместо 104×96'), out);
     rmSync(dir, { recursive: true, force: true });
 });
 
 test('опись не содержит двух файлов с одним именем', () => {
     const names = manifest().map((f) => f.name);
     assert.equal(new Set(names).size, names.length);
+});
+
+test('файлы прежнего уговора отмечаются, а не заворачиваются', () => {
+    // Предплечье и голень первой волны пришли с кистью и стопой внутри.
+    // Они работают в игре через подгонку, и заворачивать их из-за смены
+    // уговора значило бы требовать перерисовки работающего.
+    const dir = mkdtempSync(join(tmpdir(), 'art-legacy-'));
+    const old = { w: 224, h: 128 };
+    writeFileSync(join(dir, 'part-zhila-arm-fore.png'),
+        makePng(old.w, old.h, { x0: 6, x1: old.w - 6, y: old.h / 2, half: 30 }));
+    const { code, out } = run(dir);
+    assert.ok(out.includes('прежний уговор'), out);
+    assert.ok(!out.match(/Вернулось на переделку[^]*part-zhila-arm-fore/), 'файл прежнего уговора не должен возвращаться');
+    // Код всё равно ненулевой: в каталоге не хватает остальных файлов.
+    assert.equal(typeof code, 'number');
+    rmSync(dir, { recursive: true, force: true });
+});
+
+test('перекраска файла прежнего уговора не становится новой ошибкой геометрии', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'art-legacy-recolor-'));
+    const old = { w: 224, h: 128 };
+    writeFileSync(join(dir, 'part-kostolom-arm-fore.png'),
+        makePng(old.w, old.h, { x0: 6, x1: old.w - 6, y: old.h / 2, half: 30 }));
+    const { out } = run(dir);
+    assert.ok(out.includes('part-kostolom-arm-fore.png'), out);
+    assert.ok(out.includes('прежний уговор'), out);
+    assert.ok(!out.match(/Вернулось на переделку[^]*part-kostolom-arm-fore/), out);
+    rmSync(dir, { recursive: true, force: true });
 });

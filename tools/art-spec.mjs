@@ -2,7 +2,7 @@
  * Опись заказа на графику: что заказано, какого размера и где у него суставы.
  *
  * Один файл на всех: по нему рисуется эталон (`reference.mjs`), по нему же
- * принимается поставка (`check-art.mjs`), и на него ссылается `ART.md`.
+ * принимается поставка (`check-art.mjs`), и на него ссылается `docs/ART.md`.
  * Разойтись они не могут, потому что источник один.
  *
  * Размеры частей тела = длина кости в мире × 4. Четырёхкратный запас нужен
@@ -10,8 +10,8 @@
  * бывают с двойной плотностью, и камера при переломе ныряет ещё вчетверо.
  */
 
-export { SCALE, PAD, PIECES, HEAD, anchorsOf } from '../src/sprites.js';
-import { PIECES, HEAD, anchorsOf } from '../src/sprites.js';
+export { SCALE, PAD, PIECES, HEAD, SOLO, anchorsOf } from '../src/sprites.js';
+import { PIECES, HEAD, SOLO, anchorsOf } from '../src/sprites.js';
 
 export const FIGHTERS = [
     { id: 'zhila', ru: 'ЖИЛА', rim: '#ff2d55' },
@@ -34,13 +34,28 @@ export function manifest() {
     for (const fighter of FIGHTERS) {
         for (const piece of PIECES) {
             const { a, b } = anchorsOf(piece);
+            // Предплечье и голень первой волны пришли по прежнему уговору, с
+            // кистью и стопой внутри. Они работают через подгонку FIT и ждут
+            // перерисовки без спешки — заворачивать их незачем.
+            const wasOverhang = piece.id === 'arm-fore' || piece.id === 'leg-shin';
             files.push(png(`part-${fighter.id}-${piece.id}.png`, piece.w, piece.h, {
-                group: 'части тела', wave: fighter.id === 'zhila' ? 1 : 2, anchors: [a, b],
+                group: 'части тела',
+                wave: fighter.id === 'zhila' ? 1 : 2,
+                anchors: [a, b],
+                // КОСТОЛОМ получен пиксельной перекраской ЖИЛЫ: его альфа и
+                // геометрия те же, поэтому прежний уговор наследуется тоже.
+                legacy: wasOverhang,
             }));
         }
-        files.push(png(`part-${fighter.id}-head.png`, HEAD.w, HEAD.h, {
-            group: 'части тела', wave: fighter.id === 'zhila' ? 1 : 2, anchors: [HEAD.anchor],
-        }));
+        for (const solo of SOLO) {
+            files.push(png(`part-${fighter.id}-${solo.id}.png`, solo.w, solo.h, {
+                group: 'части тела',
+                // Кисть и стопа для ЖИЛЫ ещё не нарисованы: в первой волне они
+                // сидели внутри конечности. Поэтому они во второй волне.
+                wave: fighter.id === 'zhila' && solo.id === 'head' ? 1 : 2,
+                anchors: [solo.anchor],
+            }));
+        }
     }
 
     for (const arena of ARENAS) {
@@ -62,7 +77,9 @@ export function manifest() {
         const { a, b } = anchorsOf(piece);
         files.push(png(`bone-${piece.id}.png`, piece.w, piece.h, { group: 'скелет для рентгена', wave: 2, anchors: [a, b] }));
     }
-    files.push(png('bone-head.png', HEAD.w, HEAD.h, { group: 'скелет для рентгена', wave: 2, anchors: [HEAD.anchor] }));
+    for (const solo of SOLO) {
+        files.push(png(`bone-${solo.id}.png`, solo.w, solo.h, { group: 'скелет для рентгена', wave: 2, anchors: [solo.anchor] }));
+    }
 
     for (let i = 1; i <= 6; i += 1) files.push(png(`blood-splat-${i}.png`, 256, 256, { group: 'кровь', wave: 2 }));
     for (let i = 1; i <= 3; i += 1) files.push(png(`blood-pool-${i}.png`, 512, 256, { group: 'кровь', wave: 2 }));

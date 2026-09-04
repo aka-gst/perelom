@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { STATE, TUNE, createFight, optionsFor, other, stepFrame } from '../src/fight.js';
-import { ACTION, lengthOf } from '../src/rules.js';
+import { CATCHUP_FLOOR, STATE, TUNE, createFight, optionsFor, other, stepFrame, tick } from '../src/fight.js';
+import { ACTION, FPS, lengthOf } from '../src/rules.js';
 import { BROKEN } from '../src/body.js';
+import { centerOf, heightOf } from '../src/physics.js';
 
 const NEUTRAL = {
     left: false, right: false, up: false, down: false,
@@ -139,13 +140,206 @@ test('край арены калечит: нога выбивает тело в 
     assert.ok(fight.log.some((line) => line.includes('о скалу')), `в логе нет удара о скалу: ${fight.log.join(' | ')}`);
 });
 
-test('сломанной рукой нельзя ни ударить, ни перехватить', () => {
-    const fight = createFight({ seed: 13 });
-    fight.fighters[0].body.bones.arm.state = BROKEN;
-    assert.deepEqual(optionsFor(fight.fighters[0]).sort(), ['catchFoot', 'foot', 'grab']);
+test('перелом отнимает всё, что делают этой конечностью', () => {
+    // Апперкот и подсечка обязаны подчиняться тому же правилу, что и
+    // остальное: перелом отнимает ВСЁ, что делают этой конечностью. Иначе
+    // несущее правило игры дырявое — руку сломали, а она бьёт апперкотом.
+    const рука = createFight({ seed: 13 });
+    рука.fighters[0].body.bones.arm.state = BROKEN;
+    assert.deepEqual(optionsFor(рука.fighters[0]).sort(), ['catchFoot', 'foot', 'grab', 'sweep']);
+    place(рука, 80);
+    drive(рука, 20, once({ hand: true }));
+    assert.equal(рука.fighters[1].body.hp, 100, 'сломанная рука не бьёт');
+    drive(рука, 26, once({ hand: true, down: true }));
+    assert.equal(рука.fighters[1].body.hp, 100, 'и апперкотом тоже не бьёт');
+
+    const нога = createFight({ seed: 13 });
+    нога.fighters[0].body.bones.leg.state = BROKEN;
+    assert.deepEqual(optionsFor(нога.fighters[0]).sort(), ['catchHand', 'grab', 'hand', 'upper']);
+    place(нога, 140);
+    drive(нога, 26, once({ foot: true }));
+    assert.equal(нога.fighters[1].body.hp, 100, 'сломанная нога не бьёт');
+    drive(нога, 26, once({ foot: true, down: true }));
+    assert.equal(нога.fighters[1].body.hp, 100, 'и подсечкой тоже не бьёт');
+});
+
+test('от руки голова уходит назад, от ноги боец складывается', () => {
+    // Обе позы обязаны быть живыми. Дважды получалась мёртвая ветка: сперва
+    // выбор шёл по имени кости — кулак в вытянутой руке идёт на уровне груди
+    // и в череп не попадает вовсе; потом по высоте касания — порог ловил всё
+    // подряд. Высота удара это свойство приёма, и тест держит именно его.
+    const high = createFight({ seed: 3 });
+    place(high, 100);
+    drive(high, 14, once({ hand: true }));
+    assert.equal(high.fighters[1].state, STATE.hurt);
+    assert.equal(high.fighters[1].hurtKind, 'hurtHigh');
+
+    const low = createFight({ seed: 3 });
+    place(low, 150);
+    drive(low, 22, once({ foot: true }));
+    assert.equal(low.fighters[1].state, STATE.hurt);
+    assert.equal(low.fighters[1].hurtKind, 'hurtLow');
+
+    // И реакция должна быть именно движением, а не сменой картинки: голова
+    // заметно уходит с места, иначе вес удара теряется.
+    const head = low.fighters[1].sk.points.head;
+    assert.ok(Math.abs(head.x - low.fighters[1].x) > 8 || head.y > low.fighters[1].groundY - 150,
+        'тело не сложилось: реакция на попадание не видна');
+});
+
+test('лежачего не бьют — иначе комбо переезжает на землю', () => {
+    // Одно из четырёх правил, на которых разваливался джагл, и до
+    // отрицательного контроля его не стерегло ничто.
+    //
+    // Премису теста пришлось править трижды, и все три раза одинаково: я
+    // объявлял мир успокоившимся по СЛЕДСТВИЮ, а не по самому миру.
+    // Сначала бил сразу — прилетал урон от встречи с землёй. Потом ждал
+    // стабильности здоровья — но пока тело летит, здоровье тоже стоит.
+    // Потом ждал низкой высоты — но сразу после броска тело ещё у земли и
+    // только начинает лететь. Тихо — это низко И неподвижно.
+    const fight = createFight({ seed: 9 });
+    // У левого края: бросок унесёт тело вправо, где пусто. Иначе оно
+    // долетает до скалы, та законно ломает кость, и виноватым выглядит удар.
+    fight.fighters[0].x = fight.centerX - fight.wall + 60;
+    fight.fighters[1].x = fight.fighters[0].x + 70;
+    drive(fight, 1);
+    drive(fight, 24, once({ grab: true }), () => input({ right: true }));
+    const victim = fight.fighters[1];
+    assert.equal(victim.state, STATE.down, 'бросок обязан положить противника');
+
+    let quiet = 0;
+    let was = centerOf(victim.sk).x;
+    for (let i = 0; i < 240 && quiet < 8 && victim.state === STATE.down; i += 1) {
+        stepFrame(fight, [still, still]);
+        const now = centerOf(victim.sk).x;
+        quiet = heightOf(victim.sk) < 20 && Math.abs(now - was) < 0.6 ? quiet + 1 : 0;
+        was = now;
+    }
+    // Никаких аварийных выходов: тест, который может решить «проверять
+    // нечего», всегда зелёный. Именно на этом он и промолчал, когда защиту
+    // лежачего вырезали целиком.
+    assert.equal(victim.state, STATE.down, 'тело обязано лежать к моменту проверки');
+
+    // Меряем только те кадры, пока противник ЛЕЖИТ: как встал, удар по
+    // поднимающемуся проходит законно — это окидзэмэ, а не дыра.
+    // Подводим бойца вплотную к лежащему. Без этого удар до тела просто не
+    // достаёт — оно улетело на две сотни пикселей, — и тест проходил из-за
+    // дистанции, а не из-за защиты. Четвёртая поправка премисы, и снова та
+    // же: проверял не то, что думал.
+    fight.fighters[0].x = centerOf(victim.sk).x - 60;
+    stepFrame(fight, [still, still]);
+
+    const before = victim.body.hp;
+    let hpLying = before;
+    let lyingFrames = 0;
+    for (let i = 0; i < 40; i += 1) {
+        stepFrame(fight, [once({ hand: true }), still]);
+        if (victim.state !== STATE.down) break;
+        lyingFrames += 1;
+        hpLying = victim.body.hp;
+    }
+    // И проверяем, что проверять было что: без этого «ноль кадров лёжа»
+    // прошло бы как успех.
+    assert.ok(lyingFrames >= 12, `тело лежало всего ${lyingFrames} кадров — бить было некогда`);
+    assert.equal(hpLying, before, 'по лежачему урон проходить не должен');
+});
+
+test('боец разворачивается к лежащему телу, а не к месту, где оно было', () => {
+    // Пока противник в рагдолле, его поле `x` не обновляется — двигается
+    // только скелет. Без поправки боец после дальнего броска стоял спиной
+    // к лежащему и бил в пустоту. Нашлось не глазами: проверка защиты
+    // лежачего не краснела при вырезанной защите, потому что удар до тела
+    // вообще не доходил.
+    const fight = createFight({ seed: 9 });
+    fight.fighters[0].x = fight.centerX - fight.wall + 60;
+    fight.fighters[1].x = fight.fighters[0].x + 70;
+    drive(fight, 1);
+    drive(fight, 24, once({ grab: true }), () => input({ right: true }));
+    const victim = fight.fighters[1];
+    const hunter = fight.fighters[0];
+    assert.equal(victim.state, STATE.down);
+
+    // Ставим бойца МЕЖДУ старым и настоящим положением тела. Только так
+    // две версии расходятся: по устаревшему полю `x` тело числится слева,
+    // по скелету оно справа. Поставь его сбоку от обоих — и сломанная
+    // версия дала бы тот же ответ, а проверка ничего не значила бы.
+    drive(fight, 40);
+    const stale = victim.x;
+    const real = centerOf(victim.sk).x;
+    assert.ok(real - stale > 80, `тело обязано было улететь: ${stale.toFixed(0)} → ${real.toFixed(0)}`);
+    hunter.x = (stale + real) / 2;
+    drive(fight, 2);
+    assert.equal(hunter.facing, 1,
+        `боец обязан смотреть на тело (${real.toFixed(0)}), а не на его старое место (${stale.toFixed(0)})`);
+});
+
+test('сломанный позвоночник отнимает бросок', () => {
+    // Отрицательный контроль показал, что эту грань не стерёг никто:
+    // очистил `disables` у позвоночника — все проверки остались зелёными.
+    const fight = createFight({ seed: 5 });
+    assert.ok(optionsFor(fight.fighters[0]).includes('grab'));
+    fight.fighters[0].body.bones.spine.state = BROKEN;
+    assert.ok(!optionsFor(fight.fighters[0]).includes('grab'),
+        'со сломанным позвоночником не бросают');
+    place(fight, 70);
+    drive(fight, 26, once({ grab: true }));
+    assert.equal(fight.fighters[1].body.hp, 100, 'сломанный позвоночник не должен бросать вовсе');
+});
+
+test('апперкот подбрасывает сам — второй вход в джагл', () => {
+    // Перехват подбрасывает, но случается редко: надо и успеть, и угадать
+    // тип. Апперкот даёт тот же вход за другую цену — за долгий разгон и
+    // очень долгий отходняк.
+    const fight = createFight({ seed: 3 });
     place(fight, 80);
-    drive(fight, 20, once({ hand: true }));
-    assert.equal(fight.fighters[1].body.hp, 100, 'сломанная рука не должна бить вовсе');
+    drive(fight, 22, once({ hand: true, down: true }));
+    assert.equal(fight.fighters[1].state, STATE.launched, 'апперкот обязан подбрасывать');
+    assert.equal(fight.fighters[1].sk.mode, 'ragdoll');
+    // И цена: отходняк у него дольше, чем у обычного удара, заметно.
+    assert.ok(ACTION.upper.recovery > ACTION.hand.recovery * 2,
+        'дешёвый вход в джагл обесценил бы перехват');
+    assert.ok(ACTION.upper.startup > ACTION.hand.startup);
+});
+
+test('подсечка быстрее ноги и сбивает с ног, но не подбрасывает', () => {
+    // Замысел был «достаёт отступающего», но замер его не подтвердил:
+    // подсечка бьёт на 164, нога на 181. Роль у неё в скорости, и тест
+    // держит именно то, что подтвердилось, а не то, что задумывалось.
+    assert.ok(ACTION.sweep.startup < ACTION.foot.startup, 'подсечка обязана быть быстрее ноги');
+
+    const открытый = createFight({ seed: 3 });
+    place(открытый, 130);
+    drive(открытый, 24, once({ foot: true, down: true }));
+    assert.equal(открытый.fighters[1].state, STATE.down, 'открытого подсечка обязана сбить');
+    assert.notEqual(открытый.fighters[1].state, STATE.launched, 'сбитый — не подброшенный');
+
+    // А закрывшегося — не сбивает: подсечка блокируется, как и всё
+    // остальное. Задумывалась она ответом на вечное отступление, но им не
+    // стала, и делать её непробиваемой значило бы обесценить блок.
+    const закрытый = createFight({ seed: 3 });
+    place(закрытый, 130);
+    drive(закрытый, 24, once({ foot: true, down: true }), () => input({ right: true }));
+    assert.notEqual(закрытый.fighters[1].state, STATE.down, 'блок обязан держать и подсечку');
+});
+
+test('порог догона записан верно и меряется, а не выводится', () => {
+    // У цикла есть ограничитель догона, и у него есть цена: ниже порога
+    // игровое время отстаёт, а догнать нечем — окна разъезжаются все разом,
+    // и это выглядит как сломанный баланс, хотя сломана среда.
+    //
+    // Число обязано быть замеренным, а не записанным: поменяют шаг или
+    // ограничитель — тест покраснеет, а не тихо соврёт.
+    const прогон = (fps) => {
+        const fight = createFight({ seed: 1 });
+        for (let i = 0; i < fps; i += 1) tick(fight, 1 / fps, [still, still]);
+        return fight.frame;
+    };
+
+    assert.equal(CATCHUP_FLOOR, FPS / TUNE.maxCatchUpSteps);
+    assert.equal(прогон(Math.ceil(CATCHUP_FLOOR)), FPS,
+        `на пороге ${CATCHUP_FLOOR} кадров игровое время обязано поспевать`);
+    assert.ok(прогон(Math.floor(CATCHUP_FLOOR) - 2) < FPS,
+        'ниже порога игровое время обязано отставать — иначе ограничителя нет');
 });
 
 test('бой доигрывается до победителя и не зависает', () => {

@@ -16,86 +16,22 @@
 
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { inflateSync } from 'node:zlib';
 import { join, extname } from 'node:path';
 
 import { manifest } from './art-spec.mjs';
+import { readPng } from './png.mjs';
 
 const root = process.argv[2] ?? 'assets/art';
 const problems = [];
 const notes = [];
+const stale = [];
 const fail = (s) => problems.push(s);
 const ok = (s) => notes.push(s);
+const note = (s) => stale.push(s);
 
 /* ─────────────────────────── PNG ─────────────────────────── */
 
 /** Разбор PNG без зависимостей: только то, что нужно приёмке. */
-function readPng(buf) {
-    if (buf.readUInt32BE(0) !== 0x89504e47) return { error: 'не PNG' };
-    let pos = 8;
-    let ihdr = null;
-    const idat = [];
-    while (pos + 8 <= buf.length) {
-        const len = buf.readUInt32BE(pos);
-        const type = buf.toString('ascii', pos + 4, pos + 8);
-        const body = buf.subarray(pos + 8, pos + 8 + len);
-        if (type === 'IHDR') {
-            ihdr = {
-                width: body.readUInt32BE(0),
-                height: body.readUInt32BE(4),
-                depth: body[8],
-                color: body[9],
-                interlace: body[12],
-            };
-        } else if (type === 'IDAT') idat.push(body);
-        else if (type === 'IEND') break;
-        pos += 12 + len;
-    }
-    if (!ihdr) return { error: 'нет заголовка IHDR' };
-    if (ihdr.interlace !== 0) return { ...ihdr, error: 'чересстрочный PNG — не поддерживается' };
-    if (ihdr.depth !== 8) return { ...ihdr, error: `${ihdr.depth} бит на канал вместо 8` };
-    const CH = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[ihdr.color];
-    if (!CH) return { ...ihdr, error: `неизвестный тип цвета ${ihdr.color}` };
-    if (ihdr.color === 3) return { ...ihdr, channels: CH, error: 'палитровый PNG — нужен PNG-32 с альфой' };
-
-    let raw;
-    try {
-        raw = inflateSync(Buffer.concat(idat));
-    } catch (error) {
-        return { ...ihdr, error: `данные не распаковались: ${error.message}` };
-    }
-
-    const stride = ihdr.width * CH;
-    const out = Buffer.alloc(stride * ihdr.height);
-    let src = 0;
-    for (let y = 0; y < ihdr.height; y += 1) {
-        const filter = raw[src];
-        src += 1;
-        const line = raw.subarray(src, src + stride);
-        src += stride;
-        const dst = y * stride;
-        const prev = dst - stride;
-        for (let x = 0; x < stride; x += 1) {
-            const a = x >= CH ? out[dst + x - CH] : 0;
-            const b = y > 0 ? out[prev + x] : 0;
-            const c = x >= CH && y > 0 ? out[prev + x - CH] : 0;
-            let value = line[x];
-            if (filter === 1) value += a;
-            else if (filter === 2) value += b;
-            else if (filter === 3) value += (a + b) >> 1;
-            else if (filter === 4) {
-                const p = a + b - c;
-                const pa = Math.abs(p - a);
-                const pb = Math.abs(p - b);
-                const pc = Math.abs(p - c);
-                value += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
-            }
-            out[dst + x] = value & 0xff;
-        }
-    }
-    return { ...ihdr, channels: CH, pixels: out };
-}
-
 /** Непрозрачная рамка: где на самом деле лежит рисунок внутри холста. */
 function inkBox(png) {
     let x0 = png.width;
@@ -149,6 +85,8 @@ function readWebp(buf) {
 /* ─────────────────────────── проверки ─────────────────────────── */
 
 const files = manifest();
+/** Файлы прежнего уговора: работают через подгонку, ждут перерисовки. */
+const legacy = new Set(files.filter((f) => f.legacy).map((f) => f.name));
 const wanted = new Map(files.map((f) => [f.name, f]));
 const hashes = new Map();
 
@@ -177,7 +115,9 @@ for (const name of present) {
         const png = readPng(buf);
         if (png.error) { fail(`${name}: ${png.error}`); continue; }
         if (png.width !== spec.w || png.height !== spec.h) {
-            fail(`${name}: ${png.width}×${png.height}, а нужно ${spec.w}×${spec.h}`);
+            const say = legacy.has(name) ? note : fail;
+            say(`${name}: ${png.width}×${png.height} вместо ${spec.w}×${spec.h}`
+                + (legacy.has(name) ? ' — прежний уговор, работает через подгонку, ждёт перерисовки' : ''));
             continue;
         }
         if (!spec.opaque && png.channels !== 4 && png.channels !== 2) {
@@ -252,6 +192,10 @@ if (missing.length) {
     console.log(`\nНе пришло (${missing.length}):`);
     for (const f of missing.slice(0, 20)) console.log(`  · ${f.name} — ${f.group}, волна ${f.wave}`);
     if (missing.length > 20) console.log(`  · …и ещё ${missing.length - 20}`);
+}
+if (stale.length) {
+    console.log(`\nПрежний уговор — работает, но ждёт перерисовки (${stale.length}):`);
+    for (const s of stale) console.log(`  · ${s}`);
 }
 if (problems.length) {
     console.log(`\nВернулось на переделку (${problems.length}):`);
