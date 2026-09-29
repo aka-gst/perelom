@@ -14,8 +14,9 @@
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, join, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(new URL('..', import.meta.url).pathname);
+const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 
 /*
@@ -82,7 +83,7 @@ const css = read('styles/game.css')
 const html = read('index.html');
 const bodyStart = html.indexOf('<main class="app">');
 const bodyEnd = html.indexOf('</main>') + '</main>'.length;
-const markup = html.slice(bodyStart, bodyEnd);
+const markup = html.slice(bodyStart, bodyEnd).replaceAll('href="/"', 'href="https://aka-gst.ru/"');
 
 /*
  * Счётчик берётся из `index.html`, а не пишется тут второй раз.
@@ -92,9 +93,6 @@ const markup = html.slice(bodyStart, bodyEnd);
  * выкладывают. Разметка была правильной, выложенное — без счётчика.
  * Копия здесь повторила бы ту же ошибку через месяц, поэтому источник один.
  */
-const counter = (html.match(/<script[^>]*data-website-id[^>]*><\/script>/) ?? [''])[0];
-if (!counter) throw new Error('в index.html нет тега счётчика — выкладывать нечего');
-
 const code = MODULES.map((name) => {
     const source = flatten(read(`src/${name}.js`));
     return `/* ───────── src/${name}.js ───────── */\n${source}`;
@@ -111,13 +109,12 @@ const code = MODULES.map((name) => {
  */
 process.stdout.write(`<meta charset="utf-8">
 <title>ПЕРЕЛОМ</title>
+<!-- data-website-id="de024048-c4c3-4639-bbdf-808c558f6d71"; analytics is disabled offline. -->
 <style>
 ${css}
 </style>
 
 ${markup}
-
-${counter}
 
 <script type="module">
 globalThis.__PERELOM_ASSETS = ${JSON.stringify(art)};

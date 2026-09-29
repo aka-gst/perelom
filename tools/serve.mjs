@@ -45,4 +45,4 @@ createServer(async (req, res) => {
     } catch {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
     }
-}).listen(PORT, () => console.log(`ПЕРЕЛОМ → http://localhost:${PORT}`));
+}).listen(PORT, '127.0.0.1', () => console.log(`ПЕРЕЛОМ → http://localhost:${PORT}`));
